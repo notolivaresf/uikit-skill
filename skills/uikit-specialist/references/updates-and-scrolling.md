@@ -1,32 +1,73 @@
 # Updates and scrolling
 
-Most visible list bugs are update bugs: the list jumps when older content loads, a new message does not scroll into view, a cell flashes because it was reloaded, or an update during a drag stutters. This file covers how to change a list without the user noticing anything but the change.
+Most visible list bugs are update bugs: the list jumps when older content loads, a new message does not scroll into view, a cell flashes because it was reloaded, or an update during a drag stutters. This file covers changing a list so the user notices only the change.
 
 ## Choose the right update
 
 | Change | Do |
 |---|---|
-| Item content changed, same identity | `snapshot.reconfigureItems(ids)` then apply |
-| Cell type for an item changed | `snapshot.reloadItems(ids)` then apply |
-| Items added, removed or moved | build or edit a snapshot, apply with animation if the user caused it |
+| Item content changed, same identity | `snapshot.reconfigureItems(ids)`, then apply |
+| An item's cell type changed | `snapshot.reloadItems(ids)`, then apply |
+| Items added, removed or moved | edit or build a snapshot; animate if the user caused it |
 | Everything replaced (new account, new query) | apply without animation, or `applySnapshotUsingReloadData(_:)` |
-| A cell's own height changed (expanded text) | `invalidateIntrinsicContentSize()` inside the cell with `selfSizingInvalidation` on, or reconfigure |
-| Only a visual effect (badge pulse) | change the visible cell directly through `collectionView.cellForItem(at:)` and leave the snapshot alone |
+| A cell's own height changed (expanded text) | `invalidateIntrinsicContentSize()` in the cell with `selfSizingInvalidation` on, or reconfigure |
+| A purely visual effect on a visible cell (a pulse) | change that cell through `cellForItem(at:)`; leave the snapshot alone |
 
-Coalesce bursts. If messages arrive many per second, collect changes and apply one snapshot per frame or per short interval rather than one per message. Each apply diffs the whole snapshot, so frequent tiny applies cost more than one bigger one.
+Wrong: `reloadData()` for a small change.
 
-Animate changes the user caused (sending, deleting, expanding). Do not animate changes that happen far from the visible area or during a fast scroll; the animation work is wasted and can cause hitches.
+```swift
+messages[index].isRead = true
+collectionView.reloadData()
+```
 
-## Keeping the position when content is inserted above
+Right:
 
-When you insert items above what the user is looking at (loading older messages, a new item at the top of a feed), the content grows above the viewport and everything visible moves down. The fix is to measure where an anchor item is before the update and put it back after.
+```swift
+store[id]?.isRead = true
+var snapshot = dataSource.snapshot()
+snapshot.reconfigureItems([id])
+dataSource.apply(snapshot, animatingDifferences: false)
+```
 
-Anchor on a visible item, not on `contentSize`. With estimated sizes, the content size changes as cells are measured, so a "add the size delta to the offset" approach drifts.
+Never call `performBatchUpdates`, `insertItems(at:)` or `reloadData()` on a collection view that has a diffable data source; the data source owns the updates.
+
+## Coalesce bursts
+
+When changes arrive many per second (a socket, a sync), collect them and apply one snapshot per short interval (50 to 100 ms) or per batch. Each apply diffs the whole snapshot, so many tiny applies cost more than one larger one, and each animated apply starts animations that the next one interrupts.
+
+```swift
+private var pending: [Change] = []
+private var flushTask: Task<Void, Never>?
+
+func receive(_ change: Change) {
+    pending.append(change)
+    guard flushTask == nil else { return }
+    flushTask = Task { [weak self] in
+        try? await Task.sleep(for: .milliseconds(80))
+        self?.flush()
+    }
+}
+
+private func flush() {
+    flushTask = nil
+    let changes = pending
+    pending.removeAll()
+    applyChanges(changes)          // one snapshot
+}
+```
+
+Do not animate changes far from the visible area or during a fast scroll; the animation work is wasted and can hitch.
+
+## Keeping position when content is inserted above
+
+Inserting above the viewport (older messages, a new item at the top of a feed) grows content above what the user is reading, and everything visible moves down. Measure an anchor item before the update and put it back after.
+
+Anchor on a visible item, not on `contentSize`. With estimated sizes the content size changes as cells are measured, so adding a size delta to the offset drifts.
 
 ```swift
 @MainActor
 func prependPreservingPosition(_ olderIDs: [ItemID]) async {
-    // 1. Pick the anchor: the first fully visible item, and its distance from the top of the visible area.
+    // 1. The anchor: the first item whose top is visible, and its distance from the visible top.
     let visibleTop = collectionView.contentOffset.y + collectionView.adjustedContentInset.top
     let anchor = collectionView.indexPathsForVisibleItems
         .sorted()
@@ -48,7 +89,7 @@ func prependPreservingPosition(_ olderIDs: [ItemID]) async {
     }
     await dataSource.apply(snapshot, animatingDifferences: false)
 
-    // 3. Put the anchor back where it was.
+    // 3. Put the anchor back.
     guard let (id, distance) = anchor,
           let indexPath = dataSource.indexPath(for: id) else { return }
     collectionView.layoutIfNeeded()
@@ -58,21 +99,29 @@ func prependPreservingPosition(_ olderIDs: [ItemID]) async {
 }
 ```
 
-Notes:
+- Measure, apply and restore with no animation and no suspension between apply and restore other than the apply itself, so no frame is drawn in a moved state.
+- If the user is dragging or decelerating (`isDragging`, `isDecelerating`), setting the offset stops the scroll. Queue the prepend until the scroll ends, or start loading earlier so the insert lands while the user is still far from the top.
+- Trigger loading before the user reaches the top: when the first visible index is within a screen of the start, or from prefetching.
+- Cells inserted above the anchor are measured lazily. That is fine: only the anchor's final frame matters.
 
-- Do the measure, apply and restore in one main-actor turn with no animation, so no frame is drawn in between.
-- If the user is dragging or decelerating (`isDragging`, `isDecelerating`), setting the offset stops the scroll. Either queue the prepend until the scroll ends, or keep the scroll alive by adjusting the offset by the anchor's movement in `scrollViewDidScroll` rather than calling `setContentOffset`.
-- Trigger loading of older content before the user reaches the very top (for example when the first visible index is within a screen of the start, or through prefetching), so the insert happens off screen.
-- With estimated sizes, the inserted cells above the anchor are measured lazily. That is fine for this approach: only the anchor's final frame matters.
+Wrong: an upside-down list for chat.
+
+```swift
+collectionView.transform = CGAffineTransform(scaleX: 1, y: -1)
+// and each cell flipped back
+```
+
+It breaks VoiceOver order, context menu previews, scroll indicators, the keyboard dismiss gesture and accessibility scrolling. Keep natural order and anchor as above.
 
 ## Sticking to the bottom (chat and logs)
 
-Keep the natural top-to-bottom order. Track whether the user is at the bottom, and only follow new content when they are.
+Track whether the user is at the bottom, and follow new content only when they are.
 
 ```swift
 var isPinnedToBottom: Bool {
-    let bottomEdge = collectionView.contentOffset.y + collectionView.bounds.height - collectionView.adjustedContentInset.bottom
-    return bottomEdge >= collectionView.contentSize.height - 24
+    let visibleBottom = collectionView.contentOffset.y + collectionView.bounds.height
+        - collectionView.adjustedContentInset.bottom
+    return visibleBottom >= collectionView.contentSize.height - 24
 }
 
 @MainActor
@@ -87,25 +136,50 @@ func append(_ newIDs: [ItemID]) async {
 }
 ```
 
-- Read `isPinnedToBottom` before the update; after it the content size has already changed.
-- When the keyboard appears, the visible area shrinks from the bottom. If the user was pinned, keep them pinned: see the keyboard section in `layout.md`.
-- For the first load of a long conversation, apply without animation, call `layoutIfNeeded()`, then scroll to the last item without animation, before the view appears (in `viewIsAppearing(_:)`).
-- If the user is not pinned, show a "new messages" button instead of moving them.
+- Read "pinned" before the update; after it the content size has changed.
+- When the keyboard rises the visible area shrinks from the bottom. If the user was pinned, keep them pinned: remember the state before the layout change and scroll to the last item when the collection view's height changes.
+- First load of a long conversation: apply without animation, `layoutIfNeeded()`, scroll to the last item without animation, all before the view appears (in `viewIsAppearing(_:)`).
+- When the user is not pinned, show a "new messages" control instead of moving them.
 
 ## Restoring a position across launches or reloads
 
-Save the identifier of the top visible item and its offset from the top, not a raw `contentOffset`. After the next load, find that identifier's index path and use the same restore step as the prepend above. Raw offsets are wrong as soon as anything above changes size, including after a Dynamic Type change.
+Save the identifier of the top visible item and its offset from the visible top, not a raw `contentOffset`. After the next load, find that identifier's index path and use the restore step above. A raw offset is wrong as soon as anything above changes size, including after a text size change.
 
-## Scrolling programmatically
+## Scrolling in code
 
-- `scrollToItem(at:at:animated:)` works with estimated sizes but the final position can be off by the difference between estimate and real size when the target is far away. For an exact landing, scroll without animation, `layoutIfNeeded()`, then scroll again to the same item.
-- Do not scroll in `viewDidLoad`; the bounds are not final. Use `viewIsAppearing(_:)` (available back to iOS 13) or after the first layout.
-- Do not call `scrollToItem` in the same turn as an animated `apply`; await the apply first.
+- `scrollToItem(at:at:animated:)` works with estimated sizes, but a far target can land off by the estimate error. For an exact landing: scroll without animation, `layoutIfNeeded()`, then scroll to the same item again.
+- Do not scroll in `viewDidLoad`; bounds are not final. Use `viewIsAppearing(_:)` or a point after the first layout.
+- Await an animated `apply` before calling `scrollToItem` for an item it inserted.
+- `UIScrollView` content offset changes in code do not call `scrollViewWillBeginDragging(_:)`; do not rely on delegate methods to detect your own scrolls.
 
 ## Scroll delegate hygiene
 
-`scrollViewDidScroll(_:)` runs every frame while scrolling. Keep it to comparisons and cheap property changes. Never apply snapshots, start layout passes, or do allocation-heavy work there. For "load more" triggers, prefer prefetching (see `performance.md`) or a check that runs at most once per threshold crossing.
+`scrollViewDidScroll(_:)` runs every frame while scrolling. Keep it to comparisons and cheap property sets. Never apply snapshots, force layout, or allocate heavily there.
 
-## Rotations and size changes
+For "load more", use prefetching (`list-performance.md`) or a check that fires once per threshold crossing:
 
-When the container width changes, cells resize and every height can change, so the visible item moves. Save the anchor in `viewWillTransition(to:with:)` and restore it in the coordinator's animation or completion block, using the same anchor method as above.
+```swift
+func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    let nearTop = scrollView.contentOffset.y < scrollView.bounds.height
+    if nearTop && !isLoadingOlder && hasOlder {
+        isLoadingOlder = true
+        loadOlderTask = Task { await loadOlder() }    // resets isLoadingOlder when done
+    }
+}
+```
+
+## Size changes
+
+When the container width changes, cells resize and heights change, so the visible item moves. Save the anchor in `viewWillTransition(to:with:)` and restore it in the coordinator's animation or completion block with the same anchor method.
+
+## Scroll edge effects (iOS 26+)
+
+Scroll views draw an edge effect where content meets a bar. `topEdgeEffect`, `bottomEdgeEffect`, `leftEdgeEffect` and `rightEdgeEffect` are `UIScrollEdgeEffect` objects with a `style` (`.automatic`, `.soft`, `.hard`) and `isHidden`. Leave them on for scroll views under system bars. Hide one only when the edge never meets a bar.
+
+## Review checks
+
+1. No `reloadData()` or batch updates with a diffable data source.
+2. Bursts coalesced into one apply.
+3. Prepends restore an anchor item, not a content-size delta.
+4. Chat stays in natural order; "pinned" checked before updates.
+5. `scrollViewDidScroll(_:)` does only cheap work.

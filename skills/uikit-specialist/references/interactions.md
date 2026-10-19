@@ -1,10 +1,8 @@
-# Interactions
-
-Context menus, text selection, edit menus, swipe actions, drag and drop, and pointer and keyboard support.
+# Interactions: menus, swipes, drag and drop, pointer, keyboard, haptics
 
 ## Context menus in collection views
 
-Use the delegate methods that take a set of index paths (iOS 16+); they support multiple selection and are the current API.
+Use the delegate methods that take a set of index paths (iOS 16+). They support multiple selection.
 
 ```swift
 func collectionView(_ collectionView: UICollectionView,
@@ -26,79 +24,104 @@ func collectionView(_ collectionView: UICollectionView,
 }
 ```
 
-- Capture identifiers, not index paths, in the actions; the list can change while the menu is open.
-- Build the menu lazily in the action provider. Use `UIDeferredMenuElement` for items that need async work (for example "Open in" targets).
-- Customise the lifted preview with `collectionView(_:contextMenuConfiguration:highlightPreviewForItemAt:)` and `...dismissalPreviewForItemAt:` returning a `UITargetedPreview` with `UIPreviewParameters` (a rounded `visiblePath` for bubble-shaped cells).
-- For views that are not cells, add a `UIContextMenuInteraction` to the view and implement its delegate. Buttons can show a menu directly with `button.menu` and `showsMenuAsPrimaryAction`.
-- The same menu also appears on secondary click on iPad with a pointer and on Mac Catalyst, so it doubles as the right-click menu.
+- Capture identifiers, never index paths; the list can change while the menu is open.
+- Build the menu lazily in the action provider. `UIDeferredMenuElement` loads items that need async work; `.uncached` reloads them each time.
+- Customize the lifted preview with `collectionView(_:contextMenuConfiguration:highlightPreviewForItemAt:)` and `...dismissalPreviewForItemAt:`, returning a `UITargetedPreview` with `UIPreviewParameters` (a `visiblePath` for rounded or bubble-shaped cells).
+- For views that are not cells, add a `UIContextMenuInteraction`. Buttons show menus with `button.menu` and `showsMenuAsPrimaryAction = true`.
+- The same menu appears on secondary click with a pointer and on Mac, so it doubles as the right-click menu.
+- `UIMenu.Options`: `.displayInline` for a section with separators, `.singleSelection` for a picker, `.displayAsPalette` for a row of small items. `UIMenuElement.Attributes.keepsMenuPresented` keeps the menu open after a toggle.
 
-## Text selection
-
-`UILabel` does not support selection. When users must select part of a text (messages, notes, code, anything they may want to quote), display it in a non-editable `UITextView`.
+Wrong: actions that recompute from an index path later.
 
 ```swift
-let textView = UITextView()
-textView.isEditable = false
-textView.isSelectable = true
-textView.isScrollEnabled = false          // lets it size to its content like a label
-textView.backgroundColor = .clear
-textView.textContainerInset = .zero
-textView.textContainer.lineFragmentPadding = 0
-textView.adjustsFontForContentSizeCategory = true
-textView.font = .preferredFont(forTextStyle: .body)
-textView.dataDetectorTypes = [.link]
+UIAction(title: "Archive") { _ in self.archive(self.items[indexPath.item]) }
 ```
 
-- With `isScrollEnabled = false` the text view has an intrinsic content size and works in self-sizing cells.
-- Remove the default insets (`textContainerInset`, `lineFragmentPadding`) so it lines up with neighbouring labels.
-- Selection in a cell competes with the cell's own gestures. Long press selects a word in the text view; a context menu on the cell also uses long press. Decide which wins: typical apps let the context menu own the whole cell and add a "Select Text" or "Copy" action, or keep selection active and attach the context menu to an area outside the text. Test both on device; the simulator hides the conflict.
-- Customise the edit menu that appears for a selection with `textView(_:editMenuForTextIn:suggestedActions:)` (iOS 16+) on `UITextViewDelegate`; iOS 26 adds `textView(_:editMenuForTextInRanges:suggestedActions:)` for multi-range selections, so implement that one too when you build with the iOS 26 SDK. Return a `UIMenu` that adds your actions to the suggested ones.
-- Links: `UITextViewDelegate`'s `textView(_:primaryActionFor:defaultAction:)` and `textView(_:menuConfigurationFor:defaultMenu:)` (iOS 17+) handle taps and menus on links and other text items. Prefer them to the older URL interaction methods.
-- If the text should be selectable only as a whole (copy the message), skip the text view: a context menu action that writes to `UIPasteboard.general` is simpler and cheaper.
-- A text view is heavier than a label. In very long lists, measure; if needed, show a label normally and swap to a text view when the user starts a selection gesture.
+Right: resolve once, capture the IDs.
+
+## Menus on buttons and bars
+
+- `UIButton(configuration:primaryAction:)`, `menu`, `showsMenuAsPrimaryAction`, and `changesSelectionAsPrimaryAction = true` for a pop-up picker button.
+- `UIBarButtonItem(title:image:primaryAction:menu:)`; a bar item with both a primary action and a menu shows the menu on long press.
+- Pull-down and pop-up menus replace action sheets for choices attached to a control.
 
 ## Edit menus for custom views
 
-For custom views that need Copy, Paste or custom commands on selection, use `UIEditMenuInteraction` (iOS 16+). `UIMenuController` is deprecated.
+For custom views that offer Copy, Paste or commands on a selection, use `UIEditMenuInteraction` (iOS 16+). `UIMenuController` is deprecated.
 
 ```swift
 let editMenu = UIEditMenuInteraction(delegate: self)
 canvas.addInteraction(editMenu)
 
 func showMenu(at point: CGPoint) {
-    let configuration = UIEditMenuConfiguration(identifier: nil, sourcePoint: point)
-    editMenu.presentEditMenu(with: configuration)
+    editMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
 }
 
 func editMenuInteraction(_ interaction: UIEditMenuInteraction,
                          menuFor configuration: UIEditMenuConfiguration,
                          suggestedActions: [UIMenuElement]) -> UIMenu? {
-    UIMenu(children: suggestedActions + [UIAction(title: "Duplicate") { [weak self] _ in self?.duplicate() }])
+    UIMenu(children: suggestedActions + [UIAction(title: String(localized: "Duplicate")) { [weak self] _ in self?.duplicate() }])
 }
 ```
 
-Standard commands (copy, paste, select all) come from the responder chain. Override `canPerformAction(_:withSender:)` and implement `copy(_:)` on the responder to take part.
+Standard commands (copy, paste, select all) come from the responder chain: override `canPerformAction(_:withSender:)` and implement `copy(_:)` on the responder. Text view menus are in `text.md`.
 
 ## Swipe actions
 
-With list layouts, provide `leadingSwipeActionsConfigurationProvider` and `trailingSwipeActionsConfigurationProvider` on `UICollectionLayoutListConfiguration`. Return `UISwipeActionsConfiguration` with `UIContextualAction`s; call the completion handler with `true` when the action finished. Resolve the item through the data source at the time of the swipe.
+With list layouts, set `leadingSwipeActionsConfigurationProvider` and `trailingSwipeActionsConfigurationProvider` on `UICollectionLayoutListConfiguration`. Return `UISwipeActionsConfiguration` with `UIContextualAction`s, and call the completion handler with `true` when done. Resolve the item from the data source inside the provider.
 
-Every swipe action should also exist in the context menu and as an accessibility custom action, because swipes are not discoverable.
+```swift
+config.trailingSwipeActionsConfigurationProvider = { [weak self] indexPath in
+    guard let self, let id = self.dataSource.itemIdentifier(for: indexPath) else { return nil }
+    let delete = UIContextualAction(style: .destructive, title: String(localized: "Delete")) { _, _, done in
+        self.delete([id])
+        done(true)
+    }
+    return UISwipeActionsConfiguration(actions: [delete])
+}
+```
+
+Every swipe action must also be in the context menu and in `accessibilityCustomActions`, because swipes are not discoverable.
 
 ## Drag and drop
 
-- Collection views: set `dragDelegate` and `dropDelegate`, return `UIDragItem`s with `NSItemProvider`s in `collectionView(_:itemsForBeginning:at:)`, and use `dragInteractionEnabled = true` on iPhone (it is on by default on iPad).
-- Reordering within a diffable data source: set `dataSource.reorderingHandlers.canReorderItem` and `didReorder`, and update your model from the transaction's final snapshot.
+- Collection views: set `dragDelegate` and `dropDelegate`. Return `UIDragItem`s with `NSItemProvider`s from `collectionView(_:itemsForBeginning:at:)`. `dragInteractionEnabled = true` on iPhone (on by default on iPad).
+- Reorder within a diffable data source with `reorderingHandlers` (see `diffable-data.md`), not the drop delegate.
 - Any view: `UIDragInteraction` and `UIDropInteraction`.
-- Load dropped data asynchronously from the item provider; never block the main thread waiting for it.
+- Load dropped data asynchronously from the item provider (`loadObject(ofClass:)`, `loadFileRepresentation(forTypeIdentifier:)`); never block waiting.
+- Put the local model object in `UIDragItem.localObject` so drops inside the app skip serialization.
+- Keep the drag delegate's begin methods free of UI work that assumes a finger on screen; the system can start a drag session without a direct touch on recent releases (see the whats-new skill).
 
-## Pointer, keyboard and focus
+## Pointer and hover
 
-- Buttons and bar items get pointer effects for free. For custom views, add `UIPointerInteraction` and return a `UIPointerStyle` (`.highlight` or `.lift`) from its delegate.
-- Add keyboard shortcuts with `UIKeyCommand` in `keyCommands` or, better, in the main menu with `buildMenu(with:)` on the app delegate, so they appear in the iPad shortcut overlay and the Mac menu bar.
-- Hover effects: `hoverStyle` on views (iOS 17+) for visionOS and pointer.
-- Collection views support focus-based keyboard navigation with `allowsFocus = true`; set `selectionFollowsFocus` where arrow keys should select.
+- Buttons and bar items have pointer effects. For custom views, add `UIPointerInteraction` and return a `UIPointerStyle` (`.init(effect: .highlight(targetedPreview))` or `.lift`).
+- `hoverStyle` (iOS 17+) on a view gives the hover highlight on iPad with a pointer and on visionOS.
+- `UIHoverGestureRecognizer` for custom hover behavior.
+- Tool tips: `UIToolTipInteraction` (iOS 15+), or `toolTip` on controls.
+
+## Keyboard
+
+- Add commands to the main menu with `buildMenu(with:)` on the app delegate or a responder, so they appear in the iPad shortcut overlay and the Mac menu bar. A `UIKeyCommand` there needs a title and a discoverability title.
+- Per-screen shortcuts: `keyCommands` on the responder that handles them.
+- `wantsPriorityOverSystemBehavior = true` only when a shortcut must beat a text field's default (rare).
+- Focus: collection views support arrow-key navigation with `allowsFocus = true`; `selectionFollowsFocus` where arrows should select. Custom focusable views override `canBecomeFocused` and use `focusGroupIdentifier`.
+- Return and Escape: put a `UIKeyCommand` with `UIKeyCommand.inputEscape` on sheets and popovers so Escape dismisses.
+
+## Gestures
+
+- Prefer controls and built-in interactions to raw gesture recognizers.
+- Resolve conflicts with `require(toFail:)` or the delegate's `shouldRecognizeSimultaneouslyWith`, not with delays.
+- A long press recognizer on a cell fights the context menu; use the context menu.
+- Hit targets at least 44 by 44 points. Grow a small control's target by overriding `point(inside:with:)`, not by making it look bigger.
 
 ## Haptics
 
-Use `UIFeedbackGenerator` subclasses (`UIImpactFeedbackGenerator`, `UISelectionFeedbackGenerator`, `UINotificationFeedbackGenerator`). On iOS 17.5+ create them with `init(view:)` so feedback can be tied to a location, and call `prepare()` just before an expected event. Many standard controls already play haptics; do not double them.
+Use `UIFeedbackGenerator` subclasses (`UIImpactFeedbackGenerator`, `UISelectionFeedbackGenerator`, `UINotificationFeedbackGenerator`). On iOS 17.5+ create them with `init(view:)` and trigger with the `at:` location variants (`impactOccurred(at:)`), so feedback works with a pointer and on other inputs. Call `prepare()` just before an expected event. Standard controls already play haptics; do not double them.
+
+## Review checks
+
+1. Menus capture identifiers.
+2. Swipe actions duplicated in context menus and accessibility actions.
+3. Drops load asynchronously.
+4. Keyboard commands in the main menu with titles.
+5. Haptic generators made with a view on iOS 17.5+.
