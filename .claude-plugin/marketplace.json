@@ -8,7 +8,7 @@
     {
       "name": "uikit-specialist",
       "source": "./",
-      "description": "Modern UIKit as a pair of skills: uikit-specialist (iOS 18+ practice and performance) and uikit-whats-new-27 (what changed in the iOS 27 SDK)."
+      "description": "Modern UIKit as a pair of skills in Swift (uikit-specialist, uikit-whats-new-27) and in Objective-C (uikit-specialist-objc, uikit-whats-new-27-objc)."
     }
   ]
 }

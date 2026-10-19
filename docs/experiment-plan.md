@@ -47,6 +47,8 @@ Install exactly one skill folder per build, identically for Opus and Sol, with t
 
 **Level 2 UIKit arm uses the pair (19 Oct, v0.3-pair):** arm C installs `skills/uikit-specialist` (v0.3) and `skills/uikit-whats-new-27` together, matching Apple's SwiftUI pair. The slim (S1) and full single-skill (S2) arms above move to later experiments.
 
+**Level 2 Objective-C arm uses the Objective-C pair (19 Oct, v0.4-objc-pair):** the Objective-C UIKit builds install `skills/uikit-specialist-objc` and `skills/uikit-whats-new-27-objc` together, the same rules and topics as the Swift pair with every example in Objective-C. Where an iOS 27 API is Swift only, the objc skill says so and names the Objective-C route. Size is about 22 percent over the Swift pair (233,796 bytes against 190,814), above the 10 percent budget in (c); the code is longer in Objective-C.
+
 Apple's exported text is never committed to either repo. Run records hold the export command, the Xcode build number and file hashes instead.
 
 ### Isolation

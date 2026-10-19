@@ -2,7 +2,7 @@
 
 A pair of agent skills for writing, reviewing and speeding up modern UIKit code (iOS 18 and later), for Claude Code and Codex.
 
-**Status: v0.3-pair (19 Oct 2026).** Not yet tested against a benchmark. See `docs/experiment-plan.md`.
+**Status: v0.4-objc-pair (19 Oct 2026).** Not yet tested against a benchmark. See `docs/experiment-plan.md`.
 
 ## Variants
 
@@ -10,10 +10,14 @@ A pair of agent skills for writing, reviewing and speeding up modern UIKit code 
 |---|---|---|---|---|
 | Specialist (v0.3) | `skills/uikit-specialist` | SKILL.md + 15 references | 130,946 bytes (128 KB) | 17,195 |
 | What's new in iOS 27 (v0.3) | `skills/uikit-whats-new-27` | SKILL.md + 10 references | 59,868 bytes (58 KB) | 7,485 |
+| Specialist, Objective-C (v0.4) | `skills/uikit-specialist-objc` | SKILL.md + 15 references | 170,049 bytes (166 KB) | 20,602 |
+| What's new in iOS 27, Objective-C (v0.4) | `skills/uikit-whats-new-27-objc` | SKILL.md + 10 references | 63,747 bytes (62 KB) | 8,105 |
 | Slim (v0.2-slim) | `skills/uikit-specialist-slim` | one SKILL.md | 12,410 bytes (12 KB) | 1,669 |
 | Full single skill (v0.1) | tag `v0.1` only (the folder now holds v0.3) | SKILL.md + 8 references | 66 KB | 8,918 |
 
 Counts with `cat <files> | wc -c` and `wc -w` over every `.md` in the folder, 19 Oct 2026.
+
+The Objective-C pair (`uikit-specialist-objc` and `uikit-whats-new-27-objc`) has the same rules and the same topics as the Swift pair, with every example in modern Objective-C (nullability, lightweight generics, `weakSelf`/`strongSelf` blocks, `UICollectionViewCellRegistration`, `NSDiffableDataSourceSnapshot<Section, Item>`). Install it instead of the Swift pair in an Objective-C project, not beside it. It is about 22 percent larger than the Swift pair. Selectors were checked against the iOS 26.4 SDK headers; iOS 27 symbols were taken from the Objective-C declarations on Apple's documentation pages, and the skill says "Swift only" where Apple documents no Objective-C form (`navigationBarMinimization`, the `UIArrangementViewController` placement methods, reserved regions, `LayoutRegion.bar`, observation tracking in section providers).
 
 The pair is the default: install `uikit-specialist` and `uikit-whats-new-27` together. It matches the shape of Apple's Xcode 27 SwiftUI pair (a specialist skill for practice and performance, and a separate skill for what changed in the newest SDK), so a UIKit and SwiftUI comparison gives both sides the same kind of help. The slim and v0.1 variants stay for later experiments on skill size.
 
@@ -46,7 +50,7 @@ SKILL.md holds how to work, the core rules, one "use when" line per reference an
 
 ## Install
 
-The skill is a folder in the open Agent Skills format (`SKILL.md` with `name` and `description`, plus `references/`). Copy or symlink `skills/uikit-specialist` and `skills/uikit-whats-new-27` into the place your agent reads skills from.
+The skill is a folder in the open Agent Skills format (`SKILL.md` with `name` and `description`, plus `references/`). Copy or symlink `skills/uikit-specialist` and `skills/uikit-whats-new-27` (or, for Objective-C code, `skills/uikit-specialist-objc` and `skills/uikit-whats-new-27-objc`) into the place your agent reads skills from.
 
 ### Claude Code
 
