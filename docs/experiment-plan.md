@@ -33,6 +33,18 @@ The benchmark is [notolivaresf/uikit-vs-swiftui](https://github.com/notolivaresf
 
 Arm C is the fair pair: a general skill on each side. Arm B shows what Apple's own pairing does, with a lopsided UIKit side, and needs Xcode 27 installed to export the Apple skills (Fernando's go-ahead; not installed). Arm C can run on the UIKit side without Xcode 27 if only UIKit builds are compared against arm A. Each arm runs both models (Opus and Sol), so 4 builds per arm, one at a time, as in level 1.
 
+### Size arm (added 19 Oct)
+
+Fernando's hypothesis: UIKit is mature and models know it, so a skill needs only a fraction of the size; Apple's SwiftUI skill is large because SwiftUI changes a lot. The size arm tests that on the UIKit side only, with the same models and the same clean clone:
+
+| Arm | UIKit skill | Size |
+|---|---|---|
+| S0. No skill | none (this is arm A, level 1) | 0 |
+| S1. Slim | `skills/uikit-specialist-slim` (tag `v0.2-slim`) | 1,669 words, 12 KB |
+| S2. Full | `skills/uikit-specialist` (tag `v0.1`) | 8,918 words, 66 KB |
+
+Install exactly one skill folder per build, identically for Opus and Sol, with the isolation rules below. Metrics, in the same order as "What counts as success": (1) behaviours that pass, (2) agent cost (time, turns, builds and failed builds, tokens), (3) the gap between models, (4) only then fps, hitches, launch and memory. Also record whether the skill was invoked and which rules the agent followed. Read the result as: slim is enough if S1 matches S2 on 1 to 3; the skill is worth having at all only if S1 or S2 beats S0 by more than the level 1 spread. Level 1 failure the slim skill targets: opus-uikit could not select message text. Plan only; no builds run, and none start without Fernando.
+
 Apple's exported text is never committed to either repo. Run records hold the export command, the Xcode build number and file hashes instead.
 
 ### Isolation
@@ -67,7 +79,7 @@ The skill must stay general: no Campfire names, no PROMPT.md numbers, no harness
 - **Hash.** The run record stores the tag, the commit and a hash of the skill folder:
 
   ```sh
-  find skills/uikit-specialist -type f | sort | xargs shasum -a 256 | shasum -a 256
+  find skills/<variant folder> -type f | sort | xargs shasum -a 256 | shasum -a 256
   ```
 
   v0.1 (first commit): `a5ccc2dd73ee530aa28f5f82399edf72d5e95d4cd89a5e6ee93efe26a3949e84`.

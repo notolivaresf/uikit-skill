@@ -2,7 +2,16 @@
 
 An agent skill for writing, reviewing and speeding up modern UIKit code (iOS 18 and later), for Claude Code and Codex.
 
-**Status: draft (v0.1, 19 Oct 2026).** Not yet tested against a benchmark. See `docs/experiment-plan.md`.
+**Status: draft (v0.1 full and v0.2-slim, 19 Oct 2026).** Not yet tested against a benchmark. See `docs/experiment-plan.md`.
+
+## Two variants
+
+| Variant | Folder | Size |
+|---|---|---|
+| Full (v0.1) | `skills/uikit-specialist` | 8,918 words, 66 KB: SKILL.md plus 8 references |
+| Slim (v0.2-slim) | `skills/uikit-specialist-slim` | 1,669 words, 12 KB: one SKILL.md, no references |
+
+Why a slim one: UIKit is mature and models already know it (both UIKit benchmark builds were fast with no skill). A skill should hold only what an agent gets wrong or forgets. The slim variant keeps recent API changes and deprecations, a few correctness rules (selectable text, scroll position on prepend, staying pinned, self-sizing invalidation, diffable reconfigure vs reload, main-actor rules) and a checklist, and drops general UIKit teaching. The benchmark's size arm (no skill / slim / full) will show whether the extra 7,000 words pay for themselves; see `docs/experiment-plan.md`. Install the slim one the same way as below, with the folder name `uikit-specialist-slim`.
 
 ## Why
 

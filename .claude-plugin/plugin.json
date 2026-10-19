@@ -1,6 +1,6 @@
 {
   "name": "uikit-specialist",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Modern UIKit for iOS 18 and later: collection views, diffable data sources, self-sizing cells, scroll position, Dynamic Type, layout, concurrency and performance.",
   "author": { "name": "Fernando Olivares" },
   "license": "MIT"
