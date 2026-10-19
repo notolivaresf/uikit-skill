@@ -1,6 +1,6 @@
 {
   "name": "uikit-skill",
-  "description": "A UIKit agent skill for Claude Code and Codex.",
+  "description": "UIKit agent skills for Claude Code and Codex.",
   "owner": {
     "name": "Fernando Olivares"
   },
@@ -8,7 +8,7 @@
     {
       "name": "uikit-specialist",
       "source": "./",
-      "description": "Modern UIKit for iOS 18 and later: collection views, diffable data sources, self-sizing cells, scroll position, Dynamic Type, layout, concurrency and performance."
+      "description": "Modern UIKit as a pair of skills: uikit-specialist (iOS 18+ practice and performance) and uikit-whats-new-27 (what changed in the iOS 27 SDK)."
     }
   ]
 }

@@ -45,6 +45,8 @@ Fernando's hypothesis: UIKit is mature and models know it, so a skill needs only
 
 Install exactly one skill folder per build, identically for Opus and Sol, with the isolation rules below. Metrics, in the same order as "What counts as success": (1) behaviours that pass, (2) agent cost (time, turns, builds and failed builds, tokens), (3) the gap between models, (4) only then fps, hitches, launch and memory. Also record whether the skill was invoked and which rules the agent followed. Read the result as: slim is enough if S1 matches S2 on 1 to 3; the skill is worth having at all only if S1 or S2 beats S0 by more than the level 1 spread. Level 1 failure the slim skill targets: opus-uikit could not select message text. Plan only; no builds run, and none start without Fernando.
 
+**Level 2 UIKit arm uses the pair (19 Oct, v0.3-pair):** arm C installs `skills/uikit-specialist` (v0.3) and `skills/uikit-whats-new-27` together, matching Apple's SwiftUI pair. The slim (S1) and full single-skill (S2) arms above move to later experiments.
+
 Apple's exported text is never committed to either repo. Run records hold the export command, the Xcode build number and file hashes instead.
 
 ### Isolation
