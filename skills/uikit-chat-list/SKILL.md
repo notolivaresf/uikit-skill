@@ -19,6 +19,7 @@ The recipe for one kind of screen: a long list that grows at the bottom while th
 8. **Apply every message as it arrives.** Do not hold updates on a timer: batching gains nothing on a recent phone and makes the stream visibly bend.
 9. **Time from the touch to the frame,** if you time anything: start at the event's `timestamp`, stop at the next display-link frame.
 10. **Release builds strip:** `DEPLOYMENT_POSTPROCESSING`, `STRIP_INSTALLED_PRODUCT`, `STRIP_STYLE = all`, `DEAD_CODE_STRIPPING`.
+11. **Never force layout from inside the list's own passes.** No `layoutIfNeeded`, and nothing that reads frames through it, from `scrollViewDidScroll`, cell provisioning (`cellForItemAt`, `cellForRowAt`) or a layout invalidation callback. The offset can move during the collection view's own layout pass, so these fire inside it, and a flush there crashes it ("Avoid flushing layout"). Read the layout's cached geometry instead.
 
 ## The list: a collection view with a custom layout
 
@@ -36,13 +37,13 @@ The layout class:
 - Read anchors from fresh frames, not attributes cached before the update.
 - Not a compositional layout with one section per message (the slowest UIKit shape), nor a hand-rolled `UIScrollView` recycler (no cell reuse, no accessibility containers).
 
-**Alternative: a table view.** A `UITableView` with a plain data source takes about half the list code. Its streaming cost against the collection view is not settled, so do not pick it expecting it to stream cheaper. It has no layout-owned anchor. If you choose it, follow `references/table-view.md`.
+**Alternative: a table view.** A `UITableView` with a plain data source takes about half the list code. On the app's own work it streams for about the same cost, but under constant accessibility queries (UI tests, assistive technology polling the screen) it costs several times more, while the collection view does not: one more reason for the default. It has no layout-owned anchor. If you choose it, follow `references/table-view.md`.
 
 ## Heights
 
 Keep saved heights, for correctness: self-sizing rows are not slower, they are wrong.
 
-- Collection view: self-sizing rows are slightly faster on a text size change, but a self-sizing layout can crash inside `UICollectionView` when the text size changes at the bottom of the list.
+- Collection view: self-sizing rows are slightly faster on a text size change, but a self-sizing layout can crash inside `UICollectionView` when the text size changes at the bottom of the list (core rule 11), and even without the crash it loses the bottom pin on some text size changes.
 - Table view: self-sizing rows lose the bottom pin (after Reset and at the end of a stream) and drift after a text size change. Saved heights keep it exact and pinned.
 
 How:
@@ -123,6 +124,6 @@ Run this when the room first works and again before you stop (or call the `uikit
 4. Removals and shrinks supply the final offset first, without animation.
 5. No decoded bitmaps for placeholders; every cache capped.
 6. Each text measured once, with the drawing view's settings.
-7. Nothing created in configure; no shrink-to-fit label updated often.
+7. Nothing created in configure; no layout flush in scroll, cell or invalidation callbacks; no shrink-to-fit label updated often.
 8. Any timing starts at the touch's timestamp and stops at the next frame.
 9. Release strip settings set.

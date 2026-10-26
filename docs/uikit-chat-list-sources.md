@@ -18,6 +18,7 @@ The evidence trail for `skills/uikit-chat-list/` and `agents/uikit-list-reviewer
 | 8 Apply as they arrive | F1.1, F1.10 | "gains nothing on a recent phone": per-message cost equal to 50 to 80 ms batches on an iPhone 12; "bends": the 100 ms ruling (F1.10) |
 | 9 Touch to frame | Findings intro, TT-10855 | |
 | 10 Release strip | F1.9 | |
+| 11 No layout flush in callbacks (v0.6.2) | E2-followup | the self-sizing collection layout (`E2CollectionSelf`) crashed in all three passes of text size at the bottom; exception "Expected dequeued view to be returned to the collection view ... Avoid flushing layout before returning the view" |
 
 `SKILL.md`, sections:
 
@@ -33,9 +34,9 @@ The evidence trail for `skills/uikit-chat-list/` and `agents/uikit-list-reviewer
 | `selfSizingInvalidation` | F1.1 S3, WWDC22-10068, SDK-UICollectionView | |
 | Fresh frames for anchors | F2.2 S3 | S3 lost 14 minutes |
 | Not compositional / not a recycler | F1.1, F1.11, F §4 | S2 and SC2 shipped the compositional shape |
-| Table alternative | E1, E2 | 61 against 119 lines; 7.73 against 7.84 s in E1; 30.7 s in E2/E3 |
-| Heights, opening | E2 | |
-| Heights, collection bullet | E2 | self-sizing 47 ms against 54.5 ms saved (17 against 25.5 ms app work); crash in all three passes |
+| Table alternative (v0.6.2: tie on own work, costlier under accessibility queries) | E1, E2, E2-followup | 61 against 119 lines; unpolled stream CPU table 6.92, 6.75, 6.87 s against collection 6.53, 6.63, 6.57 s (within 4 %); under XCUITest polling table 30.7 s against collection 8.25 s |
+| Heights, opening | E2, E2-followup | |
+| Heights, collection bullet | E2, E2-followup | self-sizing 47 ms against 54.5 ms saved (17 against 25.5 ms app work); crash in all three passes; after the crash fix pinned after only 4 of 6 text size steps at the bottom |
 | Heights, table bullet | E2 | drift up to 17 pt; saved 0 pt |
 | Heights, how: dictionary | E1 spike Heights.swift, F1.5 | |
 | Heights, old first row | E3 | |
@@ -67,7 +68,7 @@ The evidence trail for `skills/uikit-chat-list/` and `agents/uikit-list-reviewer
 | Line | Tags | Number behind the plain wording |
 |---|---|---|
 | Opening ("half the list code") | E1 | 61 against 119 lines |
-| Streaming not settled | E1, E2 | 7.73 against 7.84 s (E1); 30.7 against 8.25 s (E2/E3), being rerun |
+| Streaming cost (v0.6.2) | E2-followup | unpolled 6.8 against 6.6 s median (table 4 % above); under XCUITest `waitForExistence` polling 30.7 s against 8.25 s; a height cache by id in the table changed nothing (35.1 s); "measure with nothing polling" from the same rerun |
 | Shape: data source | E1 spike E1Table/TableAdapter.swift, F1.1 | |
 | Saved heights only | E1 spike, E2, SDK-UITableView | drift up to 17 pt |
 | `selfSizingInvalidation` | WWDC22-10068, SDK-UITableView | |
@@ -95,7 +96,9 @@ The evidence trail for `skills/uikit-chat-list/` and `agents/uikit-list-reviewer
 | Jump | F1.3, E2, SDK-UITableView | |
 | Older rows | E3 | approach (b), 42 pt |
 
-`agents/uikit-list-reviewer.md` carries the same nine checks as the `SKILL.md` checklist; its sources are those of core rules 1 to 6, 9 and 10 above.
+`agents/uikit-list-reviewer.md` carries the same nine checks as the `SKILL.md` checklist; its sources are those of core rules 1 to 6, 9, 10 and 11 above (v0.6.2 merged rule 11 into checklist item 7, so the list stays at nine).
+
+v0.6.2 (26 Oct 2026). From the Round 5 follow-up lane (commits 3da9ff2, dd8a2ce): core rule 11 and checklist item 7 (no layout flush in scroll, cell or invalidation callbacks); the table streaming cost is settled (tie on the app's own work, several times more under accessibility polling), stated in `SKILL.md` and `references/table-view.md` as a further reason for the collection-view default, without the unproven cause; the fixed self-sizing collection layout still lost the bottom pin, added to the heights collection bullet.
 
 v0.2 (26 Oct 2026). E1, E2 and E3 are in. Changes from v0.1: the custom-layout collection view is the default (Fernando chose it as the base once E1 tied on cost) and the table view moved to `references/table-view.md`; the E2 and E3 rules replace the PENDING lines; the edit-menu rule now follows the `UITextView.h` fallback; the jump, pixel-rounding and parallel-layout lines were reworded to say only what the sources record.
 
@@ -111,6 +114,7 @@ Paths are in the benchmark repo `uikit-vs-swiftui` (private).
 | `E1 spike, <file>` | `spikes/round5/SpikeKit/Sources/SpikeKit/<file>` or `spikes/round5/Apps/E1Table/TableAdapter.swift`, the code E1 measured |
 | `E2` | `docs/round5-results-e2e3.md`, E2 (commit 4d173b7), iPhone 17 simulator, three passes. Text size mid-list, frame / work ms: collection saved 54.5 / 25.5, self-sizing 47 / 17; table saved 64 / 22.5, self-sizing 80 / 17. Self-sizing collection layout crashed in `UICollectionView` in text size at the bottom, all three passes. Self-sizing table lost the pin (after Reset, end of both streams) and drifted up to 17 pt after the text size change; saved heights 0 pt. Jump to 2,500 within 0.2 pt in all four apps. Stream CPU: collection 8.25 s (agrees with E1), table 30.7 s against 7.73 s in E1, unexplained and being rerun. |
 | `E3` | `docs/round5-results-e2e3.md`, E3 (commit 4d173b7), load older from the bottom, first run of each pass, median of three. Collection with saved heights: (a) top row id and offset 0 pt, 59 to 62 ms; (b) inserted rows' heights 42 pt (the old first row changes height); (b') change in content height 0 pt, 66 to 83 ms; (c) layout keeps the anchor in `targetContentOffset(forProposedContentOffset:)` 0 pt, 39 to 46 ms. Table with saved heights: (a) 0 pt, (b) 42 pt. Self-sizing: (b) and (b') lost 2 to 4 rows; (a) 0 pt collection, 1 pt table. |
+| `E2-followup` | `docs/round5-results-e2e3.md` (updated) and `docs/round5-handoff-followup.md`, commits 3da9ff2 and dd8a2ce. Crash cause: the adapter's `scrollViewDidScroll` refreshed a debug label that read row frames through `collection.layoutIfNeeded()`; with self-sizing rows the real cell height moves the offset (`contentOffsetAdjustment`) inside the collection view's own layout pass, so `scrollViewDidScroll` fired there and the flush ran before the dequeued cell was returned. Fix: no flush inside `scrollViewDidScroll`. After the fix: 6 text size steps at the bottom, median 40 ms, max 47 ms, no crash, pinned after 4 of 6. Stream CPU with no test attached (`simctl launch -uvsAutoStream`, `ps` CPU, three alternating passes, includes launch): table 6.92, 6.75, 6.87 s; collection 6.53, 6.63, 6.57 s. Through XCUITest (`testLiveStream` waits with `waitForExistence`, which snapshots accessibility for 30 s): table 30.7 s (E1 code too: 30.0 s), collection 8.25 s. Suspected cause, not proven: the table's accessibility support builds cells for off-screen rows. The E1 table column (7.73 s) ran under a harness fault (`--only` without `launch` measured the previously installed app) and is not reproducible. |
 | `E3 spike` | `spikes/round5/Apps/R5CollectionAnchor/CollectionAdapter.swift`, the (c) layout: sorted row tops, binary search, `beginPrepend` and `targetContentOffset(forProposedContentOffset:)` |
 
 Short build names: O1/O2/O3 are `round{1,2,3}-uikit-swift-opus`, S1/S2/S3 `round{1,2,3}-uikit-swift-sol`, OC2/OC3 and SC2/SC3 the Objective-C builds by Opus and Sol.
@@ -139,7 +143,8 @@ Apple documentation pages under developer.apple.com/documentation could not be r
 - A rule on how far updates may be coalesced. We have one measurement (no gain on an iPhone 12, F1.1) and one ruling that 100 ms bends the stream (F1.10). The skill says "apply as they arrive".
 - A measured cost for TextKit 1 against TextKit 2 text views. Both pairings held drift under 0.2 pt; neither was timed against the other.
 - Whether the simulator order holds on a phone (E5, optional, not run). E2 and E3 also ran on the simulator only.
-- Whether the table and collection view still tie on streaming: E1 says yes, the E2/E3 table stream (30.7 s) disagrees; the rerun is pending, so the skill says "tied in E1, being rechecked".
+- Why a table view costs so much more under accessibility polling. The off-screen-cells explanation is a guess (no Time Profiler run yet), so the skill states only the effect.
+- A third E2 stream pass for the four E2 apps; the self-sizing collection's pin loss after the crash fix was seen in one run set only.
 - Approach (c) with self-sizing rows, and load older from the middle of the list (not run in E3).
 - What the pixel-grid rounding rule rests on: only S3's notes (`F2.2 S3`). The spike's `RowGeometry.swift` only `ceil`s sizes; it does not round positions.
 - Whether parallel row layout helps: O3's gain came with other changes, OC3's moved no number (`F §4`).

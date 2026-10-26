@@ -2,7 +2,7 @@
 
 Use when you choose a `UITableView` instead of the custom collection layout in `SKILL.md`: it takes about half the list code. Everything in `SKILL.md` still applies except the layout class; this file lists what differs.
 
-**Streaming cost: not settled.** The table has streamed for about the same CPU as the collection view in one measurement and for several times the CPU in another. Until that is resolved, do not pick the table expecting it to stream cheaper or equal.
+**Streaming cost.** On the app's own work the table streams for about the same CPU as the custom-layout collection view. Under constant accessibility queries (UI tests waiting on an element, assistive technology polling the screen) the table costs several times more, while the collection view does not. That is one more reason the collection view is the default; pick the table for less code, not for cost. When you compare the two, measure with nothing polling the app.
 
 ## Shape
 
