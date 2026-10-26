@@ -1,48 +1,48 @@
 # Measuring message text
 
-Use when writing the height measurer, when rows drift by a fraction of a point, or when a text size change is slow. Tags resolve in `../SOURCES.md`.
+Use when writing the height measurer, when rows drift by a fraction of a point, or when a text size change is slow.
 
-This is the measurer every fast build used, and E2 kept it: self-sizing rows were no slower, but they lost the pin, drifted or crashed, so saved heights stay for correctness. [E2] [F §4]
+Keep this measurer even though self-sizing rows are no slower: self-sizing rows lose the pin, drift or crash, so saved heights stay for correctness.
 
 ## Pick one pairing and keep it
 
-Two pairings were measured, and both held drift under 0.2 pt through load older, text size and rotation: [F2.4 item 5] [F §4]
+Either pairing holds the reader's place through load older, text size and rotation:
 
-| Text view | Measurer | Used by |
-|---|---|---|
-| TextKit 1: `UITextView(usingTextLayoutManager: false)` | an `NSLayoutManager` with its own text storage and container | every Opus build |
-| Default (TextKit 2) `UITextView` | `NSAttributedString.boundingRect(with:options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)` | every Sol build; the Round 5 spikes |
+| Text view | Measurer |
+|---|---|
+| TextKit 1: `UITextView(usingTextLayoutManager: false)` | an `NSLayoutManager` with its own text storage and container |
+| Default (TextKit 2) `UITextView` | `NSAttributedString.boundingRect(with:options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)` |
 
-What breaks the pairing is measuring with one text engine and settings and drawing with another. [F2.4 item 5] [SDK-UITextView]
+What breaks the pairing is measuring with one text engine and settings and drawing with another.
 
 ## Settings that must match
 
-- The text view draws with `textContainerInset = .zero` and `textContainer.lineFragmentPadding = 0`, so the measured size is the drawn size. [E1 spike, RowView.swift]
-- Measure the exact attributed string the view will show: same fonts, paragraph style, links and emoji. Build it once per message and keep it with the height, then hand that same string to the cell. [E1 spike, RowGeometry.swift]
-- The width is the bubble's maximum inner width for the current container width, never the screen's. [F1.2 O3] [F1.6]
-- Round up: `ceil` the measured width and height. [E1 spike, RowGeometry.swift]
-- Round cumulative row positions to the pixel grid when you place an offset, or a sliver of the neighbouring row shows. [F2.2 S3]
+- The text view draws with `textContainerInset = .zero` and `textContainer.lineFragmentPadding = 0`, so the measured size is the drawn size.
+- Measure the exact attributed string the view will show: same fonts, paragraph style, links and emoji. Build it once per message and keep it with the height, then hand that same string to the cell.
+- The width is the bubble's maximum inner width for the current container width, never the screen's.
+- Round up: `ceil` the measured width and height.
+- Round cumulative row positions to the pixel grid when you place an offset, or a sliver of the neighbouring row shows.
 
 ## Measure once
 
-- One measurement per message per (width, text size). O2 measured every text twice, once for its natural width and once wrapped; that cost an estimated 15 to 40 ms on load older and text size. Measure wrapped at the maximum width; the result's width is the natural width when it is narrower. [F1.3 O2] [F2.2] [F1.5 O3]
-- Key the saved value by message id, and drop it when that message's content changes (an edit, a new reaction that changes the row's height). A revision number on the message makes that check cheap. [F §3.2 outline] [F1.2 SC2/SC3]
-- Width or text size change: empty the whole store, then measure only what the list asks for. Every build re-measured the whole loaded window; measuring each text once is what separated the fast ones. [F1.5]
-- On insert or prepend, measure only the new rows. SC2 re-measured up to 300 rows to add 40 and had the slowest load older. [F1.4 SC2]
+- One measurement per message per (width, text size). Measuring every text twice, once for its natural width and once wrapped, is a common and noticeable cost on load older and text size. Measure wrapped at the maximum width; the result's width is the natural width when it is narrower.
+- Key the saved value by message id, and drop it when that message's content changes (an edit, a new reaction that changes the row's height). A revision number on the message makes that check cheap.
+- Width or text size change: empty the whole store, then measure only what the list asks for. Measuring each text once is what makes a text size change fast.
+- On insert or prepend, measure only the new rows. Re-measuring the whole loaded window to add one page makes load older the slowest operation on the screen.
 
 ## Off the main thread
 
-- Building the first page's attributed strings and heights off the main thread, before the first view controller loads, is safe when the width is checked against the real one afterwards. [F1.2 S3, OC3, O3]
-- If you measure on more than one thread, give each worker its own measurer (O3). The evidence on parallel row layout is mixed: O3's text size times fell (49 to 44 ms at the bottom, 67 to 42 ms mid-list) together with other changes, so its share is unknown, and OC3's parallel layout moved no reported number. Leave it out unless your own measurement shows a gain. [F1.5 O3] [F §4]
+- Building the first page's attributed strings and heights off the main thread, before the first view controller loads, is safe when the width is checked against the real one afterwards.
+- If you measure on more than one thread, give each worker its own measurer. There is no clear gain from parallel row layout; leave it out unless your own measurement shows one.
 
 ## Custom drawing
 
-Drawing bodies from a pre-measured layout and swapping in a real `UITextView` only when touched (OC3, about 130 lines) removed most of the app's own text work and moved the measured text size time by nothing. Do not do it. [F1.5 OC3]
+Drawing bodies from a pre-measured layout and swapping in a real `UITextView` only when touched adds a lot of code, removes most of the app's own text work and still does not make a text size change faster. Do not do it.
 
 ## Measuring for a jump
 
-A jump needs the target row's frame before the list scrolls: the layout's frame (collection view) or `rectForRow(at:)` (table). With saved heights that frame is exact. In E2 the self-sizing spikes landed within 0.2 pt too, so the jump is not the reason to keep saved heights; the pin and the text size drift are. [F1.3] [E2] [SDK-UITableView]
+A jump needs the target row's frame before the list scrolls: the layout's frame (collection view) or `rectForRow(at:)` (table). With saved heights that frame is exact. Self-sizing rows land on the target too, so the jump is not the reason to keep saved heights; the pin and the text size drift are.
 
 ## When older rows arrive
 
-The old first row is now threaded under a new neighbour and can change height. Drop its saved height along with measuring the new page; E3's approach (b), which added only the new rows' heights, drifted 42 pt for missing exactly this. [E3]
+The old first row is now threaded under a new neighbour and can change height. Drop its saved height along with measuring the new page; adding only the new rows' heights to the offset drifts for missing exactly this.
