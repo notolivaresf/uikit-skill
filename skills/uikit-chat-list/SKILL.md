@@ -16,35 +16,36 @@ The recipe for one kind of screen: a long list that grows at the bottom while th
 5. **Nothing per row that most rows do not show:** no formatters, regexes, images or extra subviews created in configure; no decoded bitmaps for placeholders; every cache capped.
 6. **No shrink-to-fit text in anything updated often.** `adjustsFontSizeToFitWidth` on a label redrawn per message can cost several times the whole list. Pick the font once.
 7. **Jump by geometry, not by hope:** load a page around the target, then place it from the list's own frame for that row, without animation.
-8. **Apply every message as it arrives.** Do not hold updates on a timer: batching gains nothing on a recent phone and makes the stream visibly bend.
+8. **Apply every message as it arrives, and make each update cost only its rows:** append the new frame, shift the tops below one changed height, keep every other cached frame and attribute. Never recompute all tops or empty the attribute cache for an append.
 9. **Time from the touch to the frame,** if you time anything: start at the event's `timestamp`, stop at the next display-link frame.
 10. **Release builds strip:** `DEPLOYMENT_POSTPROCESSING`, `STRIP_INSTALLED_PRODUCT`, `STRIP_STYLE = all`, `DEAD_CODE_STRIPPING`.
-11. **Never force layout from inside the list's own passes.** No `layoutIfNeeded`, and nothing that reads frames through it, from `scrollViewDidScroll`, cell provisioning (`cellForItemAt`, `cellForRowAt`) or a layout invalidation callback. The offset can move during the collection view's own layout pass, so these fire inside it, and a flush there crashes it ("Avoid flushing layout"). Read the layout's cached geometry instead.
+11. **Never force layout from inside the list's own passes.** No `layoutIfNeeded`, and nothing that reads frames through it, from `scrollViewDidScroll`, cell provisioning (`cellForItemAt`, `cellForRowAt`) or a layout invalidation callback. These fire inside the collection view's own layout pass, and a flush there crashes it. Read the layout's cached geometry instead.
+12. **Never delete at the top and insert at the bottom in one batch update.** Inside one batch, deletes count positions in the old list and inserts in the new one; mixing a trim with an append is an assertion crash. Trim as its own step: remove the old rows, `reloadData`, set the final offset, all without animation; then insert as usual.
 
 ## The list: a collection view with a custom layout
 
 Build on a `UICollectionView` with your own `UICollectionViewLayout` subclass, one section, rows keyed by message id. Its layout can keep the reader's place by itself on load older, the cheapest way to do it.
 
-**The trap to know first.** After rows are removed or content shrinks (trimming, Reset, a smaller text size), the collection view clamps the offset into range and animates it back, and the pin or anchor is gone, often intermittently. Return the final, in-range offset from `targetContentOffset(forProposedContentOffset:)` (the header: "the content offset to be applied during transition or update animations"); for a large removal, `reloadData` plus that offset rather than an animated delete. This one fault is a common, slow-to-find bug.
+**The trap to know first.** After rows are removed or content shrinks (trimming, Reset, a smaller text size), the collection view clamps the offset into range and animates it back, and the pin or anchor is gone, often intermittently. Return the final, in-range offset from `targetContentOffset(forProposedContentOffset:)`; for a large removal, `reloadData` plus that offset rather than an animated delete. A common, slow-to-find bug.
 
 The layout class:
 
 - Keep row tops in an array sorted by y, built from saved heights (a height index such as a Fenwick tree when prepends are frequent).
-- `prepare()` does the work once per invalidation; appends compute frames only for the new rows. Recomputing every frame on each invalidation makes streaming and load older slow.
+- `prepare()` does the work once per invalidation; appends compute frames only for the new rows (core rule 8).
 - `layoutAttributesForElements(in:)` binary-searches the tops for the rect instead of filtering every row. `layoutAttributesForItem(at:)` reads the cached frame; `collectionViewContentSize` is the last row's bottom.
 - `shouldInvalidateLayout(forBoundsChange:)` is true only when the width changes.
 - `selfSizingInvalidation = .disabled`: heights come from your measurer, so a cell's content change must not resize it behind the layout's back.
 - Read anchors from fresh frames, not attributes cached before the update.
 - Not a compositional layout with one section per message (the slowest UIKit shape), nor a hand-rolled `UIScrollView` recycler (no cell reuse, no accessibility containers).
 
-**Alternative: a table view.** A `UITableView` with a plain data source takes about half the list code. On the app's own work it streams for about the same cost, but under constant accessibility queries (UI tests, assistive technology polling the screen) it costs several times more, while the collection view does not: one more reason for the default. It has no layout-owned anchor. If you choose it, follow `references/table-view.md`.
+**Alternative: a table view.** A `UITableView` takes about half the list code and streams for the same cost on its own work, but several times more under constant accessibility queries (UI tests, assistive technology), and has no layout-owned anchor. If you choose it, follow `references/table-view.md`.
 
 ## Heights
 
 Keep saved heights, for correctness: self-sizing rows are not slower, they are wrong.
 
-- Collection view: self-sizing rows are slightly faster on a text size change, but a self-sizing layout can crash inside `UICollectionView` when the text size changes at the bottom of the list (core rule 11), and even without the crash it loses the bottom pin on some text size changes.
-- Table view: self-sizing rows lose the bottom pin (after Reset and at the end of a stream) and drift after a text size change. Saved heights keep it exact and pinned.
+- Collection view: a self-sizing layout can crash when the text size changes at the bottom (core rule 11), and loses the bottom pin on some text size changes.
+- Table view: self-sizing rows lose the bottom pin and drift after a text size change.
 
 How:
 
@@ -62,7 +63,7 @@ How:
 
 ## Older messages above
 
-Let the layout keep the anchor (approach c): no drift, and about a quarter cheaper than the next best, because UIKit gets the right offset before it makes cells for a wrong place.
+Let the layout keep the anchor (approach c): no drift, and cheapest, because UIKit gets the right offset before it makes cells.
 
 1. Before the insert, the layout notes the first visible row's message id and its distance from the top of the visible area.
 2. Measure only the new page; drop the old first row's height; insert without animation and invalidate the layout.
@@ -70,18 +71,18 @@ Let the layout keep the anchor (approach c): no drift, and about a quarter cheap
 
 Simple fallback (approach a, also the table view's): record the top row id and its distance, insert, set the offset that puts it back in the same no-animation pass. No drift with saved heights in either view.
 
-Do not add the inserted rows' total height to the offset (approach b): it drifts, because the old first row changes height when older rows arrive and that sum misses it. With self-sizing rows it loses the place by several rows.
+Do not add the inserted rows' total height to the offset (approach b): it drifts, because the old first row changes height when older rows arrive and that sum misses it.
 
-Keep the loaded window bounded (a few hundred rows) and trim with the trap rule above.
+Keep the loaded window bounded (a few hundred rows); trim per core rule 12.
 
 ## Jump to a message
 
-- Replace the loaded window with one page around the target (about 10 rows above, 30 below), `reloadData` or `applySnapshotUsingReloadData`, then set the offset from the layout's own frame for the target, rounded to the pixel grid. No animation. This lands on the target exactly.
+- Replace the loaded window with one page around the target (about 10 rows above, 30 below), `reloadData` or `applySnapshotUsingReloadData`, then set the offset from the layout's own frame for the target, rounded to the pixel grid. No animation.
 - A known symptom: a jump that lands one row off. The fix is the offset from the layout's frame for that row, not `scrollToItem(at:at:animated:)` alone. Unrounded, a sliver of the row above shows.
 
 ## Text size and rotation
 
-- On a text size change (register for `UITraitPreferredContentSizeCategory`) or a new width: capture the anchor, empty the saved heights, re-measure, invalidate, and return the anchored offset from `targetContentOffset(forProposedContentOffset:)`. This is the fastest way to handle a text size change.
+- On a text size change (register for `UITraitPreferredContentSizeCategory`) or a new width: capture the anchor, empty the saved heights, re-measure, invalidate, and return the anchored offset from `targetContentOffset(forProposedContentOffset:)`.
 - Rotation: capture the anchor in `viewWillTransition(to:with:)` and restore it in the coordinator's `animate(alongsideTransition:completion:)`, or when `viewDidLayoutSubviews` sees a new width. Both keep the reader's place.
 - Every height saved for the old width is wrong for the new one; key or empty by width.
 
@@ -111,16 +112,17 @@ They improve a number, not the screen: redrawing streamed rows or a status label
 ## How to work
 
 - Write the screen from the numbers you are given (sizes, colours, fonts) before studying screenshots pixel by pixel.
-- Write checks once the behaviour works, one per behaviour. After a change, judge it only on a build you just installed.
+- Write checks once the behaviour works, one per behaviour, testing what the reader sees (pinned, same row in place), never row geometry against screenshots pixel by pixel. After a change, judge it only on a build you just installed.
+- One test run at a time, on a simulator nothing else is using.
 - Measuring code must cost nothing: no shrink-to-fit labels, nothing redrawn per frame.
 
 ## Self-review checklist
 
-Run this when the room first works and again before you stop (or call the `uikit-list-reviewer` agent, which checks the same list):
+Run this once before you stop (or call the `uikit-list-reviewer` agent, which checks the same list):
 
 1. Edit menu returns `[yours] + suggestedActions`; no long press over text.
 2. One section; no whole-list rebuild or new snapshot per update.
-3. An insert or prepend measures only the new rows.
+3. An insert or prepend measures and lays out only the new rows; no trim shares a batch with an insert.
 4. Removals and shrinks supply the final offset first, without animation.
 5. No decoded bitmaps for placeholders; every cache capped.
 6. Each text measured once, with the drawing view's settings.

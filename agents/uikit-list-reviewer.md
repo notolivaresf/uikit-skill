@@ -1,6 +1,6 @@
 ---
 name: uikit-list-reviewer
-description: Read-only review of a UIKit chat or feed list (UITableView or UICollectionView, Swift or Objective-C) against the nine faults that cost agent-built chat screens the most - edit menu, section shape, re-measuring, offset after removals, bitmap caches, double measuring, work in configure or layout flushes in callbacks, timing clock, Release stripping. Call it once the list first works and again before finishing. Pass the paths of the list's view controller, layout or adapter, cell and update code. It never edits, builds or runs anything; it returns findings with file and line.
+description: Read-only review of a UIKit chat or feed list (UITableView or UICollectionView, Swift or Objective-C) against the nine faults that cost agent-built chat screens the most - edit menu, section shape, re-measuring, offset after removals, bitmap caches, double measuring, work in configure or layout flushes in callbacks, timing clock, Release stripping. Call it once before finishing. Pass the paths of the list's view controller, layout or adapter, cell and update code. It never edits, builds or runs anything; it returns findings with file and line.
 tools: Read, Grep, Glob
 ---
 
@@ -16,7 +16,7 @@ The nine items, word for word as in the skill:
 
 1. Edit menu returns `[yours] + suggestedActions`; no long press over text.
 2. One section; no whole-list rebuild or new snapshot per update.
-3. An insert or prepend measures only the new rows.
+3. An insert or prepend measures and lays out only the new rows; no trim shares a batch with an insert.
 4. Removals and shrinks supply the final offset first, without animation.
 5. No decoded bitmaps for placeholders; every cache capped.
 6. Each text measured once, with the drawing view's settings.
@@ -28,7 +28,7 @@ For each item: what to search for, what is wrong, the one-line fix.
 
 1. **Edit menu.** Grep `editMenuForTextIn`. Wrong: a menu built without `suggestedActions`, `suggestedActions + [...]` (your item falls to page two), only the ranges method (`editMenuForTextInRanges:`, iOS 26 and later) when the target is below iOS 26, or a `UILongPressGestureRecognizer` on the bubble or text view. Not wrong: only `editMenuForTextIn:` (per the UIKit header it works on every version; iOS 26 calls it with the union range when the ranges method is missing). Fix: `UIMenu(children: [reply] + suggestedActions)` from `editMenuForTextIn:`, and from the ranges method too if the app chose to implement it; context menu only off the text.
 2. **Section shape.** Grep `numberOfSections`, `appendSections`, `NSDiffableDataSourceSnapshot(`, `apply(`. Wrong: one section per message; a new snapshot or `reloadData` per streamed message. Fix: one section; insert the new rows, reconfigure changed ids.
-3. **Re-measuring on insert.** Follow the append and prepend paths to the measurer. Wrong: a loop over all loaded rows, or a cache emptied, when rows are added. Fix: measure only the new rows.
+3. **Re-measuring on insert.** Follow the append and prepend paths to the measurer. Wrong: a loop over all loaded rows, or a cache emptied, when rows are added; the layout recomputing every row top or emptying its attribute cache on an append or one changed height; one batch update that deletes old rows at the top and inserts new ones at the bottom (deletes count old positions, inserts new ones: an assertion crash). Fix: measure and lay out only the new rows, shift the tops below a changed height; trim as its own step with `reloadData` and the final offset, without animation.
 4. **Offset after removals and shrinks.** Find trims, Reset, deletes and text size changes. Wrong: animated deletes, or the offset set after the list's next layout pass, or a collection layout with no `targetContentOffset(forProposedContentOffset:)` (the collection view then clamps and animates the offset back), or (table view) `contentOffset` set after `endUpdates` / `performBatchUpdates` to keep the pin. Also wrong on load older: adding the inserted rows' heights to the offset instead of anchoring a row id. Fix: collection view returns the final offset from `targetContentOffset(forProposedContentOffset:)`; otherwise compute it first and set it in the same `performWithoutAnimation`; table pin via `scrollToRow(at:at: .bottom, animated: false)` inside it; large removals with `reloadData`.
 5. **Bitmaps and caches.** Grep `UIGraphicsImageRenderer`, `preparingForDisplay`, `NSCache`, `[String: UIImage]`. Wrong: placeholders rendered or decoded as images; a cache without `countLimit` or `totalCostLimit`; images decoded larger than shown. Fix: a background colour for placeholders; cap every cache; decode at display size.
 6. **Double measuring.** Grep `boundingRect`, `sizeThatFits`, `systemLayoutSizeFitting`, `NSLayoutManager`. Wrong: the same text measured twice per pass, or measured with a different engine or insets than the text view draws with. Fix: measure once, wrapped, with zero inset and zero line fragment padding on both sides.
