@@ -14,15 +14,15 @@ A pair of agent skills for writing, reviewing and speeding up modern UIKit code 
 | What's new in iOS 27, Objective-C (v0.4) | `skills/uikit-whats-new-27-objc` | SKILL.md + 10 references | 63,747 bytes (62 KB) | 8,105 |
 | Slim (v0.2-slim) | `skills/uikit-specialist-slim` | one SKILL.md | 12,410 bytes (12 KB) | 1,669 |
 | Full single skill (v0.1) | tag `v0.1` only (the folder now holds v0.3) | SKILL.md + 8 references | 66 KB | 8,918 |
-| Chat list (v0.1 draft, 26 Oct) | `skills/uikit-chat-list` + `agents/uikit-list-reviewer.md` | SKILL.md + 2 references + SOURCES.md; one read-only reviewer agent | SKILL.md and references 20 KB | 1,894 (SKILL.md), 1,290 (references), 690 (agent) |
+| Chat list (v0.2 draft, 26 Oct) | `skills/uikit-chat-list` + `agents/uikit-list-reviewer.md` | SKILL.md + 2 references + SOURCES.md; one read-only reviewer agent | SKILL.md and references 20 KB | 2,078 (SKILL.md), 1,180 (references), 868 (agent) |
 
 ### Chat list skill and reviewer (Round 5 draft)
 
-`uikit-chat-list` is one focused skill for a long chat or feed list: streaming rows pinned to the bottom, older rows above without moving, jump to a message, text size and rotation, selectable text with the system edit menu. The whole recipe is in SKILL.md, with core rules at the top, because agents read the main file once and rarely open references. `references/measuring-text.md` and `references/collection-view.md` cover the measurer and the collection-view alternative. Every rule carries a tag resolved in `SOURCES.md` (the Round 5 dataset findings, Round 5 experiment results, WWDC sessions and SDK headers).
+`uikit-chat-list` is one focused skill for a long chat or feed list: streaming rows pinned to the bottom, older rows above without moving, jump to a message, text size and rotation, selectable text with the system edit menu. The whole recipe is in SKILL.md, with core rules at the top, because agents read the main file once and rarely open references. The default list is a collection view with a custom layout; `references/measuring-text.md` and `references/table-view.md` cover the measurer and the table-view alternative. Every rule carries a tag resolved in `SOURCES.md` (the Round 5 dataset findings, Round 5 experiment results, WWDC sessions and SDK headers).
 
 `agents/uikit-list-reviewer.md` is a Claude Code subagent with only Read, Grep and Glob. The building agent calls it when the list first works and before finishing; it checks nine fault patterns and returns file:line findings. SKILL.md ends with the same checklist for Codex or any agent that does not call it. Copy the agent to `.claude/agents/` (or install the plugin, which picks up `agents/`).
 
-Draft status: two decisions wait on Round 5 experiments, marked **PENDING E2** (saved heights against self-sizing) and **PENDING E3** (how to keep the place on load older); each says the interim rule to follow. The table view choice is from E1.
+Draft status: v0.2 has the E1, E2 and E3 results (saved heights kept for correctness; the layout keeps the anchor on load older). One open check: the table view's streaming CPU disagreed between E1 and the E2/E3 runs and is being rerun, so the skill calls the streaming tie "tied in E1, being rechecked".
 
 Counts with `cat <files> | wc -c` and `wc -w` over every `.md` in the folder, 19 Oct 2026.
 

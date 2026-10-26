@@ -12,12 +12,24 @@ Start from the paths you were given. If none, Glob for `*.swift`, `*.m` and `*.h
 
 ## The checklist
 
+The nine items, word for word as in the skill:
+
+1. Edit menu returns `[yours] + suggestedActions`; no long press over text.
+2. One section; no whole-list rebuild or new snapshot per update.
+3. An insert or prepend measures only the new rows.
+4. Removals and shrinks supply the final offset first, without animation.
+5. No decoded bitmaps for placeholders; every cache capped.
+6. Each text measured once, with the drawing view's settings.
+7. Nothing created in configure; no shrink-to-fit label updated often.
+8. Any timing starts at the touch's timestamp and stops at the next frame.
+9. Release strip settings set.
+
 For each item: what to search for, what is wrong, the one-line fix.
 
-1. **Edit menu.** Grep `editMenuForTextIn`. Wrong: a menu built without `suggestedActions`, `suggestedActions + [...]` (your item falls to page two), only one of the two delegate methods when the target is below iOS 26, or a `UILongPressGestureRecognizer` on the bubble or text view. Fix: `UIMenu(children: [reply] + suggestedActions)` from both `editMenuForTextIn:` and `editMenuForTextInRanges:`; context menu only off the text.
+1. **Edit menu.** Grep `editMenuForTextIn`. Wrong: a menu built without `suggestedActions`, `suggestedActions + [...]` (your item falls to page two), only the ranges method (`editMenuForTextInRanges:`, iOS 26 and later) when the target is below iOS 26, or a `UILongPressGestureRecognizer` on the bubble or text view. Not wrong: only `editMenuForTextIn:` (per the UIKit header it works on every version; iOS 26 calls it with the union range when the ranges method is missing). Fix: `UIMenu(children: [reply] + suggestedActions)` from `editMenuForTextIn:`, and from the ranges method too if the app chose to implement it; context menu only off the text.
 2. **Section shape.** Grep `numberOfSections`, `appendSections`, `NSDiffableDataSourceSnapshot(`, `apply(`. Wrong: one section per message; a new snapshot or `reloadData` per streamed message. Fix: one section; insert the new rows, reconfigure changed ids.
 3. **Re-measuring on insert.** Follow the append and prepend paths to the measurer. Wrong: a loop over all loaded rows, or a cache emptied, when rows are added. Fix: measure only the new rows.
-4. **Offset after removals and shrinks.** Find trims, Reset, deletes and text size changes. Wrong: animated deletes, or the offset set after the list's next layout pass, or (table view) `contentOffset` set after `endUpdates` / `performBatchUpdates` to keep the pin. Fix: compute the final offset first, set it in the same `performWithoutAnimation`; table pin via `scrollToRow(at:at: .bottom, animated: false)` inside it; collection view via `targetContentOffset(forProposedContentOffset:)`; large removals with `reloadData`.
+4. **Offset after removals and shrinks.** Find trims, Reset, deletes and text size changes. Wrong: animated deletes, or the offset set after the list's next layout pass, or a collection layout with no `targetContentOffset(forProposedContentOffset:)` (the collection view then clamps and animates the offset back), or (table view) `contentOffset` set after `endUpdates` / `performBatchUpdates` to keep the pin. Also wrong on load older: adding the inserted rows' heights to the offset instead of anchoring a row id. Fix: collection view returns the final offset from `targetContentOffset(forProposedContentOffset:)`; otherwise compute it first and set it in the same `performWithoutAnimation`; table pin via `scrollToRow(at:at: .bottom, animated: false)` inside it; large removals with `reloadData`.
 5. **Bitmaps and caches.** Grep `UIGraphicsImageRenderer`, `preparingForDisplay`, `NSCache`, `[String: UIImage]`. Wrong: placeholders rendered or decoded as images; a cache without `countLimit` or `totalCostLimit`; images decoded larger than shown. Fix: a background colour for placeholders; cap every cache; decode at display size.
 6. **Double measuring.** Grep `boundingRect`, `sizeThatFits`, `systemLayoutSizeFitting`, `NSLayoutManager`. Wrong: the same text measured twice per pass, or measured with a different engine or insets than the text view draws with. Fix: measure once, wrapped, with zero inset and zero line fragment padding on both sides.
 7. **Work in configure.** Read `cellForRowAt` / the cell registration and the cell's configure method. Wrong: a `DateFormatter`, `NSRegularExpression`, `UIImage(systemName:)` or new subviews created per call; `adjustsFontSizeToFitWidth` on any label updated per message. Fix: create once and reuse; pick the font once.
