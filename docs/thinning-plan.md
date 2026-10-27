@@ -222,4 +222,12 @@ Why: Sol's top-row pick had no tolerance, so after the offset was restored the r
 
 Rule 8 gains two sentences: the top row counts only once its visible content is below the top edge (ignore transparent margin and sub-point rounding remainders, small tolerance), and the same rule is used to capture the anchor and to read the top row after restoring. No new rule. The timing/stopwatch candidate is not added.
 
-SKILL.md 677 to 719 words.
+SKILL.md 677 to 721 words.
+
+### The thin6 edit (branch `thin6`, tag `v0.11.6-thin6`)
+
+Why: the round 5 agent-time note found that Sol writes one test per rule and reruns the whole test target, which costs 600 to 1,250 s of model time per build.
+
+Two edits. A line before the numbered rules: "These rules say how to build it; they are not a list to test." The closing sentence now says to check each behaviour once the screen works and rerun only the failed tests by name (`-only-testing:`), keeping the time-limit flags and "Close any simulator you started". Rule 1's pasteboard sentence and rule 8's tolerance wording are kept. No rule added or removed.
+
+SKILL.md 721 to 730 words.
