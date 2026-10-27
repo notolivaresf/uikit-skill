@@ -1,91 +1,82 @@
 ---
 name: uikit-chat-list
-description: Build or fix a long chat or feed list in a UIKit app (iOS 18 and later, Swift or Objective-C) - messages streaming in while pinned to the bottom, older messages loading above without the view moving, jumping to a message, Dynamic Type and rotation without losing the reader's place, selectable message text with the system edit menu plus your own actions, and fast launch with low memory. Use for any UICollectionView or UITableView screen that grows at both ends, for chat rooms, comment threads, logs and timelines, and when such a list stutters, jumps, drifts or loses its pin.
+description: Build or fix a long chat or feed list in a UIKit app (iOS 18 and later, Swift or Objective-C) - live messages pinned to the bottom, older messages loading above without the view moving, jumping to a message, keyboard, Dynamic Type, rotation, right-to-left and VoiceOver without losing the reader's place, selectable text with your own edit menu actions, image rows, low memory. Use for UICollectionView or UITableView screens that grow at both ends (chat rooms, comment threads, logs, timelines) and when such a list stutters, jumps, drifts or loses its pin.
 ---
 
 # UIKit chat list
 
-The recipe for a long list that grows at the bottom while the reader is pinned there, grows at the top when older items load, and never moves under the reader's eye. UIKit only.
+A list that grows at both ends and never moves under the reader's eye. UIKit only.
 
 ## Core rules (read these even if nothing else)
 
-1. **Edit menu: your actions first, then the system's.** Return `UIMenu(children: [reply] + suggestedActions)` from the text view delegate. Never build a menu without `suggestedActions`, never append your action at the end (it lands on the menu's second page), and never put a long-press recognizer over selectable text.
-2. **Never let UIKit choose the offset after rows are removed or shrink.** It animates the offset back into range and undoes your pin or anchor. Supply the final offset yourself: from the layout's `targetContentOffset(forProposedContentOffset:)`, or set it in the same no-animation pass as the change.
-3. **One section, stable message ids, explicit row changes.** Insert only the new rows, reconfigure only the changed ids, never rebuild the whole list or snapshot per message, never one section per message.
-4. **Measure each message once and keep the height by message id,** for the current width and text size. Do it for correctness, not speed: self-sizing rows lose the pin, drift or crash.
-5. **Nothing per row that most rows do not show:** no formatters, regexes, images or extra subviews created in configure; no decoded bitmaps for placeholders; every cache capped.
-6. **No shrink-to-fit text in anything updated often.** `adjustsFontSizeToFitWidth` on a label redrawn per message can cost several times the whole list. Pick the font once.
-7. **Jump by geometry, not by hope:** load a page around the target, then place it from the list's own frame for that row, without animation.
-8. **Group live changes on a short timer, and make each update cost only its rows:** collect the messages and reactions that arrive within a tenth of a second and apply them as one batch update (much cheaper than one per message; the next run-loop turn groups almost nothing). Append the new frames, shift the tops below a changed height, keep every other cached frame and attribute. Never recompute all tops or empty the attribute cache for an append.
-9. **Time from the touch to the frame,** if you time anything: start at the event's `timestamp`, stop at the next display-link frame.
-10. **Release builds strip:** `DEPLOYMENT_POSTPROCESSING`, `STRIP_INSTALLED_PRODUCT`, `STRIP_STYLE = all`, `DEAD_CODE_STRIPPING`.
-11. **Never force layout from inside the list's own passes.** No `layoutIfNeeded`, and nothing that reads frames through it, from `scrollViewDidScroll`, cell provisioning (`cellForItemAt`, `cellForRowAt`) or a layout invalidation callback. These fire inside the collection view's own layout pass, and a flush there crashes it. Read the layout's cached geometry instead.
-12. **Never delete at the top and insert at the bottom in one batch update.** Inside one batch, deletes count positions in the old list and inserts in the new one; mixing a trim with an append is an assertion crash. Trim as its own step: remove the old rows, `reloadData`, set the final offset, all without animation; then insert as usual.
+1. **Edit menu: your actions first, then the system's.** Return `UIMenu(children: [reply] + suggestedActions)` from the text view delegate. Never drop `suggestedActions` or append yours at the end (on iPhone it lands on the second page); no long-press recognizer over selectable text.
+2. **Never let UIKit choose the offset after rows are removed or shrink.** It animates the offset back into range and undoes your pin or anchor. Set the final offset yourself in the same no-animation pass. `targetContentOffset(forProposedContentOffset:)` runs only inside batch updates, not after `reloadData` or a plain invalidation.
+3. **One section, stable message ids, explicit row changes.** Insert only new rows, reconfigure only changed ids; never rebuild the list or snapshot per message, never a section per message (one per day is fine).
+4. **Measure each message once and keep the height by message id** and width, for the current text size. Self-sizing rows are as fast but lose the pin and drift.
+5. **Nothing per row that most rows do not show:** no formatters, regexes, images, paragraph styles or subviews created in configure or in the measurer; no bitmaps for placeholders; every cache capped; no `adjustsFontSizeToFitWidth` on anything updated often.
+6. **Keep each row's measure cheap; it is the cost of every jump, page and text size change.** One layout pass per text, none for a one-line header (use the string's own size), fonts and styles made once per text size, and only as many rows as the window needs.
+7. **Jump by geometry:** replace the window with a small one around the target (about 10 rows above, 30 below; measuring is the jump's main cost), `reloadData`, set the offset from its saved-height top rounded to the pixel, then one `layoutIfNeeded`. No animation; keep image caches.
+8. **Apply live changes on the next main-queue turn, no timer.** Queue each arrival and schedule one flush if none is pending; it applies everything queued as one batch. A fixed timer delays every message by most of its interval; a display-link flush groups no more at normal rates. Your own sends apply at once.
+9. **Each update costs only its rows:** append frames for new rows, shift the tops below a changed height, keep every other cached frame. Never recompute all tops or empty the attribute cache for an append.
+10. **The app target's Release build strips:** `DEPLOYMENT_POSTPROCESSING`, `STRIP_INSTALLED_PRODUCT`, `STRIP_STYLE = all`, `DEAD_CODE_STRIPPING`.
+11. **Never force layout from inside the list's own passes.** No `layoutIfNeeded` (or anything that reads frames through it) from `scrollViewDidScroll`, cell provisioning or an invalidation callback: it crashes the collection view. Read the layout's cached geometry.
+12. **Batch indexes:** in one `performBatchUpdates`, deletes use old positions, inserts new ones. Trimming k rows from the top while appending inserts at `oldCount - k`, not `oldCount`. Do both in that one batch: `reloadData` plus a second batch reconfigures every visible cell.
 
 ## The list: a collection view with a custom layout
 
-Build on a `UICollectionView` with your own `UICollectionViewLayout` subclass, one section, rows keyed by message id. Its layout can keep the reader's place on load older, the cheapest way.
+A `UICollectionView` with your own `UICollectionViewLayout` subclass, one section, rows keyed by message id:
 
-**The trap to know first** (core rule 2): after a trim, Reset or smaller text the offset animates back into range and the pin is lost, often intermittently.
-
-The layout class:
-
-- Keep row tops in an array sorted by y, built from saved heights (a height index such as a Fenwick tree when prepends are frequent).
-- `prepare()` does the work once per invalidation; appends compute frames only for the new rows (core rule 8).
-- `layoutAttributesForElements(in:)` binary-searches the tops for the rect instead of filtering every row. `layoutAttributesForItem(at:)` reads the cached frame; `collectionViewContentSize` is the last row's bottom.
+- Row tops sorted by y from saved heights, snapped to the pixel grid (`traitCollection.displayScale`) by rounding the running position: off-grid edges leave a sliver of the row above for the next anchor to pick.
+- `prepare()` works once per invalidation; `layoutAttributesForElements(in:)` binary-searches the tops.
 - `shouldInvalidateLayout(forBoundsChange:)` is true only when the width changes.
-- `selfSizingInvalidation = .disabled`: heights come from your measurer, so a cell's content change must not resize it behind the layout's back.
-- `isPrefetchingEnabled = false`: cells prepared ahead of a list pinned at the bottom raise peak memory and gain nothing.
+- `flipsHorizontallyInOppositeLayoutDirection` returns true (right-to-left mirrors).
 - Read anchors from fresh frames, not attributes cached before the update.
-- Not a compositional layout with a section per message (slowest), nor a hand-rolled `UIScrollView` recycler (no reuse, no accessibility containers).
 
-**Alternative: a table view.** Half the code, but several times the cost under constant accessibility queries, and no layout-owned anchor; see `references/table-view.md`.
+On the collection view: `selfSizingInvalidation = .disabled`. Prefetching makes little difference; turning it off also disables `prefetchDataSource`, so keep it if you prefetch images.
+
+**A table view** is half the code but costlier under accessibility queries; see `references/table-view.md`.
 
 ## Heights
 
-Keep saved heights (core rule 4). Self-sizing rows are not faster, they are wrong: a self-sizing collection layout can crash on a text size change at the bottom (core rule 11) and loses the pin; self-sizing table rows lose the pin and drift.
-
-- Keep each row's height in a dictionary by message id. Empty it when the width or text size changes; drop one entry when one message changes.
-- When older rows arrive, drop the saved height of the old first row too: it is now threaded under a new neighbour and changes height.
-- Measure with the same text settings the view draws with. See `references/measuring-text.md`.
-- Image placeholders are a background colour, never a bitmap.
+- Empty the store on a width or text size change; drop one entry when a message changes, and the old first row's when older rows arrive (it gains a new neighbour).
+- One measurer, fonts and styles made once, the drawing view's settings; hand the measured string to the cell. See `references/measuring-text.md`.
+- A reply that grows while it streams changes only its own height: reconfigure it and shift the rows below; keep the pin.
+- Image rows take their height from the attachment's stored size, never the loaded image. Decode thumbnails off the main thread at display size (`preparingThumbnail(of:)`) into a capped cache.
 
 ## Live updates and pinning
 
-- Read "pinned" before the update (the last row within a small distance of the bottom), apply the change, then restore the pin.
-- Insert with `insertItems(at:)` inside `performBatchUpdates`, inside `UIView.performWithoutAnimation`, data source changed in the same closure; then a plain `setContentOffset` to the bottom.
-- Changed messages (reactions, edits) are `reconfigureItems(at:)`, which keeps the existing cell.
-- With a diffable data source, edit the current snapshot (append, `reconfigureItems`) rather than building a new one per message; `applySnapshotUsingReloadData` is for a reset such as a jump.
+- Read "pinned" before the update, apply the change, restore the pin.
+- `insertItems(at:)` in `performBatchUpdates` in `UIView.performWithoutAnimation`, data changed in the same closure; then set the bottom offset.
+- Changed messages (reactions, edits) are `reconfigureItems(at:)`. Deletes may animate when the reader is not pinned.
+- Diffable: edit the current snapshot; `applySnapshotUsingReloadData` only for a full replace such as a jump.
+- Keep the window to a few hundred rows; trim in the append's batch (rule 12).
+
+## Keyboard and input bar
+
+- Pin the input bar to `view.keyboardLayoutGuide`; the list's bottom inset is the bar's height plus the keyboard overlap; re-pin when it changes while pinned.
+- `keyboardDismissMode = .interactive`; during an interactive dismiss update the inset only, never re-pin per frame.
 
 ## Older messages above
 
-Let the layout keep the anchor (approach c): no drift, and cheapest, because the offset comes before the cells.
+Let the layout keep the anchor:
 
-1. Before the insert, the layout notes the first visible row's message id and its distance from the top of the visible area.
-2. Measure only the new page; drop the old first row's height; insert without animation and invalidate the layout.
-3. `targetContentOffset(forProposedContentOffset:)` returns that row's new top minus the saved distance, once, then forgets the anchor.
+1. Note the first visible row's id and its distance from the visible top.
+2. Measure only the new page, drop the old first row's height, insert without animation in `performBatchUpdates`.
+3. `targetContentOffset(forProposedContentOffset:)` returns that row's new top minus the distance, once.
 
-Simple fallback (approach a, also the table view's): record the top row id and its distance, insert, set the offset that puts it back in the same no-animation pass.
+Fallback (the table view's): set the offset that puts the anchor row back in the same pass. Never add the inserted rows' heights to the offset: the old first row's change drifts it.
 
-Do not add the inserted rows' total height to the offset (approach b): the old first row's height change makes it drift.
+## Text size, rotation, right-to-left
 
-Keep the loaded window bounded (a few hundred rows); trim per core rule 12.
-
-## Jump to a message
-
-- Replace the loaded window with one page around the target (about 10 rows above, 30 below), `reloadData` or `applySnapshotUsingReloadData`, and set the offset from the layout's own frame for the target, rounded to the pixel grid, before the list lays out: right after `reloadData`, then one `layoutIfNeeded`. Laying out, then moving, builds the cells twice. No animation.
-- A jump that lands one row off needs the offset from the layout's frame for that row, not `scrollToItem(at:at:animated:)` alone.
-
-## Text size and rotation
-
-- On a text size change (register for `UITraitPreferredContentSizeCategory`) or a new width: capture the anchor, empty the saved heights, re-measure, invalidate, and return the anchored offset from `targetContentOffset(forProposedContentOffset:)`.
-- Snap each row's top and bottom to the pixel grid in the layout (round the running position, not each height). Otherwise the rounded offset leaves a sliver of the row above, which the next anchor picks.
-- Rotation: capture the anchor in `viewWillTransition(to:with:)` and restore it in the coordinator's `animate(alongsideTransition:completion:)`, or when `viewDidLayoutSubviews` sees a new width.
+- Register for `UITraitPreferredContentSizeCategory`, `UITraitLegibilityWeight` and `UITraitDisplayScale` (and width changes). Cell labels use `adjustsFontForContentSizeCategory = false`: fonts come from the measurer's strings so drawn and measured text agree.
+- On a change: capture the anchor, rebuild the strings, empty the heights, invalidate, `layoutIfNeeded`, set the anchored offset yourself (rule 2). The cost is the measuring, so keep the window small.
+- Rotation: capture the anchor in `viewWillTransition(to:with:)`, restore it alongside the transition.
+- Right-to-left: `.natural` alignment, leading and trailing constraints.
 
 ## Selectable text and menus
 
-- Message text is a TextKit 1 `UITextView` (`UITextView(usingTextLayoutManager: false)`) measured with an `NSLayoutManager`, with `isEditable = false`, `isSelectable = true`, `isScrollEnabled = false`, zero `textContainerInset` and zero `lineFragmentPadding`. A default TextKit 2 text view redoes viewport layout and selection rects on every cell setup: far more CPU while streaming.
-- `textView(_:editMenuForTextIn:suggestedActions:)` alone works on every version (iOS 26 calls it with the union range when the ranges method is missing). The ranges method exists only from iOS 26; if you implement both, return the same menu.
+- Read-only message text is a TextKit 1 `UITextView(usingTextLayoutManager: false)` measured with an `NSLayoutManager`: not editable, selectable, no scrolling, zero `textContainerInset` and `lineFragmentPadding`. TextKit 2 redoes viewport layout on every cell setup. The input bar keeps TextKit 2; never read its `.layoutManager` (that switches it to TextKit 1).
+- `textView(_:editMenuForTextIn:suggestedActions:)` alone works everywhere; if you add the iOS 26 ranges method, return the same menu.
 
 ```swift
 private func selectionMenu(_ suggested: [UIMenuElement]) -> UIMenu {
@@ -93,36 +84,33 @@ private func selectionMenu(_ suggested: [UIMenuElement]) -> UIMenu {
 }
 ```
 
-- The bubble's own context menu is a `UIContextMenuInteraction` whose `contextMenuInteraction(_:configurationForMenuAtLocation:)` returns nil over the text, or one attached only to the parts that are not text.
+- The bubble's context menu returns nil over the text, or is attached only to the parts that are not text.
+
+## VoiceOver
+
+- One element per row (sender, text, time); reply and react as `accessibilityCustomActions`.
+- Announce arrivals (`.announcement`) only while pinned, grouped; never move focus on a live insert. After a jump, post `.layoutChanged` with the target row.
 
 ## Launch
 
-- Start building the data off the main thread before the first view controller loads.
-- Create rarely used cell subviews lazily; cache strings that repeat (a timestamp per minute); compile patterns once.
-- Check a width guessed before layout against the real one; redo the work if it differs.
-
-## Shortcuts that do not count
-
-They improve a number, not the screen: holding streamed rows or a status label back longer than a tenth of a second; timing part of an operation, or starting the clock inside the action; laying out the first screen from geometry saved by a previous launch; skipping work because the same action ran a moment ago.
+- Build the data off the main thread before the first view controller loads; check a guessed width against the real one.
+- Cache strings that repeat (a timestamp per minute); compile patterns once; make rarely used cell parts lazily.
 
 ## How to work
 
-- Write the screen from the given numbers (sizes, colours, fonts) before studying screenshots.
-- Write checks once the behaviour works, one per behaviour, testing what the reader sees (pinned, same row in place), never row geometry against screenshots pixel by pixel. After a change, judge it only on a build you just installed.
-- One test run at a time, on a simulator nothing else is using; make it once, at the device size you were given.
-- Rerun the suite only after behaviour changes; a drawing-only change needs one screenshot. Stop when the checks pass and the screen matches the given numbers.
-- Measuring code must cost nothing: no shrink-to-fit labels or per-frame redraws.
+- If you time anything, start at the event's `timestamp` and stop at the next display-link frame; timing code must cost nothing. A change that improves a timing but not the screen (holding rows back, reusing a previous launch's geometry) is a fault.
+- Judge a change only on a build you just installed. Close any simulator you started when you stop.
 
 ## Self-review checklist
 
-Run this once before you stop, by reading the code (or call the `uikit-list-reviewer` agent, which checks the same list):
+Run once before you stop, or call the `uikit-list-reviewer` agent:
 
 1. Edit menu returns `[yours] + suggestedActions`; no long press over text.
-2. One section; live changes grouped per tenth of a second; no whole-list rebuild.
-3. An insert or prepend measures and lays out only the new rows; no trim shares a batch with an insert.
-4. Removals and shrinks supply the final offset first, without animation.
-5. No decoded bitmaps for placeholders; every cache capped.
-6. Each text measured once, with the drawing view's settings; TextKit 1 text views.
+2. One section; live changes applied on the next turn, no timer; no whole-list rebuild.
+3. Inserts, prepends and text size changes measure only the rows needed; trims and appends share one batch with correct indexes.
+4. Removals, shrinks and text size changes set the final offset without animation; row edges on the pixel grid.
+5. Jumps load a small window; image heights from metadata, thumbnails at display size; every cache capped.
+6. Each text measured once, with the drawing view's settings; TextKit 1 for read-only message text.
 7. Nothing created in configure; no layout flush in scroll, cell or invalidation callbacks; no shrink-to-fit label updated often.
-8. Any timing starts at the touch's timestamp and stops at the next frame.
+8. Keyboard inset re-pins; right-to-left mirrors; VoiceOver actions, pinned-only announcements.
 9. Release strip settings set.

@@ -2,7 +2,39 @@
 
 The evidence trail for `skills/uikit-chat-list/` and `agents/uikit-list-reviewer.md`. It lives outside the installed skill folder on purpose (v0.6.1, 26 Oct 2026): the validation builds copy that folder in, so the skill names no build, round, repo or measured number; every rule is plain guidance, and this file keeps the tags and numbers behind each one. The tag map below lists, rule by rule, the tags each rule carried in v0.2; the tables after it resolve the tags. For reviewers of the skill only.
 
-## Tag map (v0.6.1 rule -> v0.2 tags)
+## v0.10 (26 Oct 2026): what changed and the evidence
+
+Evidence: the E13 spike (public repo `spikes/round5/E13`, write-up `docs/round5-v10-spikes.md`), patched copies of the E12 Sol build, 3 unpolled passes per arm, iPhone 17 simulator on iOS 26.4, plus the v0.9 adversarial review (`docs/v0.9-adversarial-review.md`, finding ids below). The tag map below stays for v0.6.1 to v0.9 rules; this table is the current rule set. Rule 8 reverses v0.8 on purpose: next-turn grouping costs more CPU than the timer at 20 messages a second (the v0.8 finding still holds), in exchange for about 60 ms less delay per message; with the one-batch trim the CPU gap is 9 % (5.41 against 4.96 s).
+
+| v0.10 rule or line | Evidence |
+|---|---|
+| Rule 2: the offset is set explicitly; `targetContentOffset(forProposedContentOffset:)` runs only inside batch updates | E13 callback probe: 0 calls after invalidate + `layoutIfNeeded` and after `reloadData`, 1 call inside `performBatchUpdates`, at the bottom and mid-list; review H4 |
+| Rule 4: heights keyed by width too; self-sizing "as fast" | review L3, M2 (E2: 47 against 54.5 ms) |
+| Rule 6: cheap per-row measure | E13: measuring is 50 to 60 % of jump and text size time (81 rows 23 to 25 ms, 41 rows 15 to 16 ms); a one-line header from `size()` instead of a layout manager pass cuts the measure 10 % (81 rows 23.1 to 20.6 ms) |
+| Rule 7: small jump window, keep caches | E13: window 81 to 41 rows, jump 49 to 33 ms median, text size mid-list 49 to 33 ms; review M9 |
+| Rule 8: next main-queue turn, no timer | E13 at 20 messages/s: 0.1 s timer latency median 66 ms, p95 103 ms; next turn 7.5 / 10.6 ms; per message 7.7 / 10.7; display link 8.3 / 17.8. CPU 4.96 s timer, 6.30 next turn (+27 %), 6.31 per message, 6.47 display link. At 1 message/s all three no-timer arms 0.41 to 0.43 s against the timer's 0.44 s, latency 9 ms against 55 ms (p95 104). Review H1 |
+| Rule 12: correct indexes, trim and append in one batch | E13 TrimBatch: 600 messages, 170 trims, no assertion; CPU 4.15 against 4.96 s (-16 %), cells configured 678 against 1,550. Combined with next-turn grouping (SolFix2) CPU 5.41 s, 14 % under next turn alone; review H2 |
+| Prefetching is a note, not a rule | E13 fling: hitches 6 against 6, CPU within 3 %, peak +2.3 MB with prefetch on; stream CPU 5.05 against 4.96 s, peak 60.9 against 58.4 MB. The programmatic fling made 0 prefetch calls, so this does not measure prefetching during a finger fling; review H3 |
+| One cell class dropped as a rule (now a launch line) | E13 OneCell: no jump or text size gain; end-of-stream footprint 44.6 against 51.4 MB, peak 60.2 against 58.4 MB: mixed, not enough for a core rule |
+| Text size: rebuild strings, extra traits, `adjustsFontForContentSizeCategory = false` | review H6 (not measured) |
+| Keyboard and input bar | review H5 (not measured) |
+| TextKit 1 scoped to read-only cells; never read `.layoutManager` on TextKit 2 | review M1; Apple's TextKit 2 compatibility note |
+| Pixel scale from `traitCollection.displayScale` | review M3 |
+| Right-to-left | review M4 (not measured) |
+| VoiceOver | review M5 (not measured) |
+| One section per day allowed; animated deletes allowed when not pinned | review M6, M8 |
+| Image rows | review M7 (not measured) |
+| Growing replies | review L4 (not measured) |
+| Release strip scoped to the app target | review L1 |
+| "Second page" marked iPhone-only | review L5 |
+| Table pin claim stated as observed | review L6 |
+| Removed wording: Reset, UI tests, given numbers, device size, "Stop when the checks pass", "Shortcuts that do not count" | review hygiene list; the shortcut list is now one "is a fault" line under How to work |
+
+Words: SKILL.md 1,915 (v0.9) to 1,548; measuring-text.md 683 to 784; table-view.md 425 to 429; reviewer 1,145 to 1,163.
+
+Not supported by E13: the "Message store copied on append" lead for Sol's memory (the Opus E11 build copies the same way); the reason Sol's bottom text size is slower than E11's (both measure 40 rows; E11 defers the re-layout into the trait change's own layout pass, Sol re-measures, reloads and restores synchronously; E11 was not rebuilt here, so this is a reading, not a measurement).
+
+## Tag map (v0.6.1 rule -> v0.2 tags; superseded by the v0.10 table above where they differ)
 
 `SKILL.md`, core rules:
 
