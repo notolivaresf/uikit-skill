@@ -4,16 +4,15 @@ Use when writing the height measurer, when rows drift by a fraction of a point, 
 
 Keep this measurer even though self-sizing rows are no slower: self-sizing rows lose the pin, drift or crash, so saved heights stay for correctness.
 
-## Pick one pairing and keep it
-
-Either pairing holds the reader's place through load older, text size and rotation:
+## Use the TextKit 1 pairing
 
 | Text view | Measurer |
 |---|---|
-| TextKit 1: `UITextView(usingTextLayoutManager: false)` | an `NSLayoutManager` with its own text storage and container |
-| Default (TextKit 2) `UITextView` | `NSAttributedString.boundingRect(with:options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)` |
+| TextKit 1: `UITextView(usingTextLayoutManager: false)`, or `init(frame:textContainer:)` with a container that has its own `NSLayoutManager` and text storage | an `NSLayoutManager` with its own text storage and container, `ensureLayout(for:)` then `usedRect(for:)` |
 
-What breaks the pairing is measuring with one text engine and settings and drawing with another.
+Both pairings hold the reader's place, but a default (TextKit 2) `UITextView` in a cell is much more expensive: every frame or text assignment in cell setup reruns its viewport layout, selection rects and content size, so streaming costs clearly more CPU and memory. Skipping unchanged text assignments does not recover it; switching the text view to TextKit 1 does. If you keep TextKit 2 anyway, measure with `NSAttributedString.boundingRect(with:options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)`.
+
+What breaks a pairing is measuring with one text engine and settings and drawing with another.
 
 ## Settings that must match
 
@@ -21,7 +20,7 @@ What breaks the pairing is measuring with one text engine and settings and drawi
 - Measure the exact attributed string the view will show: same fonts, paragraph style, links and emoji. Build it once per message and keep it with the height, then hand that same string to the cell.
 - The width is the bubble's maximum inner width for the current container width, never the screen's.
 - Round up: `ceil` the measured width and height.
-- Round cumulative row positions to the pixel grid when you place an offset, or a sliver of the neighbouring row shows.
+- Snap row tops and bottoms to the pixel grid in the layout, rounding the running position, not each height. Offsets are rounded too, so edges off the grid leave a sliver of the neighbouring row, and an anchor read from the top row then picks that neighbour.
 
 ## Measure once
 

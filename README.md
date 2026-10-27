@@ -14,7 +14,7 @@ A pair of agent skills for writing, reviewing and speeding up modern UIKit code 
 | What's new in iOS 27, Objective-C (v0.4) | `skills/uikit-whats-new-27-objc` | SKILL.md + 10 references | 63,747 bytes (62 KB) | 8,105 |
 | Slim (v0.2-slim) | `skills/uikit-specialist-slim` | one SKILL.md | 12,410 bytes (12 KB) | 1,669 |
 | Full single skill (v0.1) | tag `v0.1` only (the folder now holds v0.3) | SKILL.md + 8 references | 66 KB | 8,918 |
-| Chat list (v0.8.0, 26 Oct) | `skills/uikit-chat-list` + `agents/uikit-list-reviewer.md` | SKILL.md + 2 references; one read-only reviewer agent; sources in `docs/uikit-chat-list-sources.md` | 25,123 bytes (25 KB) | 1,915 (SKILL.md), 1,019 (references), 1,037 (agent) |
+| Chat list (v0.9.0, 26 Oct) | `skills/uikit-chat-list` + `agents/uikit-list-reviewer.md` | SKILL.md + 2 references; one read-only reviewer agent; sources in `docs/uikit-chat-list-sources.md` | 26,507 bytes (26 KB) | 1,915 (SKILL.md), 1,108 (references), 1,145 (agent) |
 
 ### Chat list skill and reviewer (Round 5 draft)
 

@@ -24,9 +24,9 @@ The recipe for a long list that grows at the bottom while the reader is pinned t
 
 ## The list: a collection view with a custom layout
 
-Build on a `UICollectionView` with your own `UICollectionViewLayout` subclass, one section, rows keyed by message id. Its layout can keep the reader's place by itself on load older, the cheapest way to do it.
+Build on a `UICollectionView` with your own `UICollectionViewLayout` subclass, one section, rows keyed by message id. Its layout can keep the reader's place on load older, the cheapest way.
 
-**The trap to know first** (core rule 2): after trimming, Reset or a smaller text size the collection view clamps the offset and animates it back, and the pin is gone, often intermittently. A common, slow-to-find bug.
+**The trap to know first** (core rule 2): after a trim, Reset or smaller text the offset animates back into range and the pin is lost, often intermittently.
 
 The layout class:
 
@@ -35,21 +35,17 @@ The layout class:
 - `layoutAttributesForElements(in:)` binary-searches the tops for the rect instead of filtering every row. `layoutAttributesForItem(at:)` reads the cached frame; `collectionViewContentSize` is the last row's bottom.
 - `shouldInvalidateLayout(forBoundsChange:)` is true only when the width changes.
 - `selfSizingInvalidation = .disabled`: heights come from your measurer, so a cell's content change must not resize it behind the layout's back.
+- `isPrefetchingEnabled = false`: cells prepared ahead of a list pinned at the bottom raise peak memory and gain nothing.
 - Read anchors from fresh frames, not attributes cached before the update.
-- Not a compositional layout with one section per message (the slowest UIKit shape), nor a hand-rolled `UIScrollView` recycler (no cell reuse, no accessibility containers).
+- Not a compositional layout with a section per message (slowest), nor a hand-rolled `UIScrollView` recycler (no reuse, no accessibility containers).
 
-**Alternative: a table view.** Half the list code, but several times the cost under constant accessibility queries (UI tests, assistive technology), and no layout-owned anchor. If you choose it, follow `references/table-view.md`.
+**Alternative: a table view.** Half the code, but several times the cost under constant accessibility queries, and no layout-owned anchor; see `references/table-view.md`.
 
 ## Heights
 
-Keep saved heights, for correctness: self-sizing rows are not slower, they are wrong.
+Keep saved heights (core rule 4). Self-sizing rows are not faster, they are wrong: a self-sizing collection layout can crash on a text size change at the bottom (core rule 11) and loses the pin; self-sizing table rows lose the pin and drift.
 
-- Collection view: a self-sizing layout can crash when the text size changes at the bottom (core rule 11), and loses the bottom pin on some text size changes.
-- Table view: self-sizing rows lose the bottom pin and drift after a text size change.
-
-How:
-
-- Work out each row's height from the message, the width and the text size, and keep it in a dictionary by message id. Empty it when the width or text size changes; drop one entry when one message changes.
+- Keep each row's height in a dictionary by message id. Empty it when the width or text size changes; drop one entry when one message changes.
 - When older rows arrive, drop the saved height of the old first row too: it is now threaded under a new neighbour and changes height.
 - Measure with the same text settings the view draws with. See `references/measuring-text.md`.
 - Image placeholders are a background colour, never a bitmap.
@@ -63,7 +59,7 @@ How:
 
 ## Older messages above
 
-Let the layout keep the anchor (approach c): no drift, and cheapest, because UIKit gets the offset before it makes cells.
+Let the layout keep the anchor (approach c): no drift, and cheapest, because the offset comes before the cells.
 
 1. Before the insert, the layout notes the first visible row's message id and its distance from the top of the visible area.
 2. Measure only the new page; drop the old first row's height; insert without animation and invalidate the layout.
@@ -78,17 +74,17 @@ Keep the loaded window bounded (a few hundred rows); trim per core rule 12.
 ## Jump to a message
 
 - Replace the loaded window with one page around the target (about 10 rows above, 30 below), `reloadData` or `applySnapshotUsingReloadData`, and set the offset from the layout's own frame for the target, rounded to the pixel grid, before the list lays out: right after `reloadData`, then one `layoutIfNeeded`. Laying out, then moving, builds the cells twice. No animation.
-- A known symptom: a jump that lands one row off. The fix is the offset from the layout's frame for that row, not `scrollToItem(at:at:animated:)` alone. Unrounded, a sliver of the row above shows.
+- A jump that lands one row off needs the offset from the layout's frame for that row, not `scrollToItem(at:at:animated:)` alone.
 
 ## Text size and rotation
 
 - On a text size change (register for `UITraitPreferredContentSizeCategory`) or a new width: capture the anchor, empty the saved heights, re-measure, invalidate, and return the anchored offset from `targetContentOffset(forProposedContentOffset:)`.
+- Snap each row's top and bottom to the pixel grid in the layout (round the running position, not each height). Otherwise the rounded offset leaves a sliver of the row above, which the next anchor picks.
 - Rotation: capture the anchor in `viewWillTransition(to:with:)` and restore it in the coordinator's `animate(alongsideTransition:completion:)`, or when `viewDidLayoutSubviews` sees a new width.
-- Every height saved for the old width is wrong for the new one; key or empty by width.
 
 ## Selectable text and menus
 
-- Message text is a `UITextView` with `isEditable = false`, `isSelectable = true`, `isScrollEnabled = false`, zero `textContainerInset` and zero `lineFragmentPadding`.
+- Message text is a TextKit 1 `UITextView` (`UITextView(usingTextLayoutManager: false)`) measured with an `NSLayoutManager`, with `isEditable = false`, `isSelectable = true`, `isScrollEnabled = false`, zero `textContainerInset` and zero `lineFragmentPadding`. A default TextKit 2 text view redoes viewport layout and selection rects on every cell setup: far more CPU while streaming.
 - `textView(_:editMenuForTextIn:suggestedActions:)` alone works on every version (iOS 26 calls it with the union range when the ranges method is missing). The ranges method exists only from iOS 26; if you implement both, return the same menu.
 
 ```swift
@@ -126,7 +122,7 @@ Run this once before you stop, by reading the code (or call the `uikit-list-revi
 3. An insert or prepend measures and lays out only the new rows; no trim shares a batch with an insert.
 4. Removals and shrinks supply the final offset first, without animation.
 5. No decoded bitmaps for placeholders; every cache capped.
-6. Each text measured once, with the drawing view's settings.
+6. Each text measured once, with the drawing view's settings; TextKit 1 text views.
 7. Nothing created in configure; no layout flush in scroll, cell or invalidation callbacks; no shrink-to-fit label updated often.
 8. Any timing starts at the touch's timestamp and stops at the next frame.
 9. Release strip settings set.
