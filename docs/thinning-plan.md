@@ -119,3 +119,61 @@ Optional single-variable arms, after 1 and 2, Opus only, one build each:
 4. **Thinner:** `thin` minus the rules the no-skill controls already do (rule 9 older messages, and rule 8's text size clause), about 110 words. If it scores the same, cut them for good.
 
 Record for every arm: skill commit and folder hash, turns, wall time, builds and failed builds, cost or tokens, which skill files were opened and at what turn, and the 13 checks with the three-pass medians.
+
+## thin2 rule use
+
+27 Oct 2026, read from the generated code (nothing built or run for this section). Subjects: the two thin2 builds (E20 Opus, E21 Sol), the thin and thin-timer builds for corroboration (E16 Opus, E17 Sol, E19 Sol; the E18 Opus tree is no longer on disk), and the controls: the two no-skill Round 1 UIKit builds and the two Round 2 builds with the general UIKit skill pair (the Round 3 control folders are the Round 2 trees). The Apple-skill builds are SwiftUI and say nothing about these rules. Method: grep for the API each rule names, then a read of the update path in E20 and E21. "Yes" means the code does what the rule says; "ctl" is how many of the four controls already do it.
+
+### Rules of thin2 SKILL.md
+
+| thin2 rule | E20 Opus | E21 Sol | E16 / E17 / E19 | Controls | Verdict |
+|---|---|---|---|---|---|
+| 1 Edit menu: your actions + `suggestedActions`, no long press | Yes | Yes | Yes, Yes, Yes | 2 of 4 (Opus no-skill uses a long-press recognizer, Sol no-skill and the Sol pair lack the system actions) | Keep |
+| 2 TextKit 1 view | Yes | Yes | Yes, Yes, Yes | 1 of 4 (Sol no-skill) | Keep the TextKit 1 call. Cut the list "not editable, selectable, no scrolling, zero inset, zero padding": the inset and padding lines are in all 10 builds, controls included |
+| 2 pointer to `measuring-text.md` | not opened | not opened | not opened | n/a | Cut file (136 words): opened in 0 of 6 thin-family transcripts |
+| 3 collection view, own layout, one section, keyed by id | Yes | Yes | Yes | 4 of 4 use a custom layout | Keep as the frame (one clause) |
+| 3 `selfSizingInvalidation = .disabled` | Yes | Yes | Yes | 0 of 4 | Keep |
+| 3 pixel snap with `displayScale` | Yes (13 uses) | Yes | Yes | 1 of 4 (Opus no-skill: none) | Keep (measured fix for the text-size rows) |
+| 3 binary search; invalidate on width change only | Yes | Yes | Yes | 4 of 4 (every control binary-searches; all have the width-only check except the Sol pair) | Cut |
+| 3 append adds frames, never recompute every top | Yes | Yes (`update` re-measures only from the first changed row) | Yes | not isolated | Keep |
+| 3 pointer to `table-view.md` | n/a | n/a | n/a | 0 table views in any build | Cut file (221 words), cut pointer |
+| 4 measure once, saved heights by id and width | Yes | Yes | Yes | 4 of 4 | Keep one sentence (the self-sizing warning carries the measured loss) |
+| 4 `NSLayoutManager` on the exact string, inner width, rounded up | Yes | Yes | Yes | 3 of 4 | Keep one clause; cut "zero inset and padding" and "hand that string to the cell" (controls do both) |
+| 4 one layout pass, header by `size()`, fonts once per size | no `size()` call | `size()` 3 uses | 2 of 3 | 1 of 4 | Cut: Opus E20 passes without it; the one measurement was -10 % of measure time |
+| 4 drop the old first row's height on older load | Yes (prepend recomputes the row) | Yes (`measurer.remove(first.id)`) | Yes | not isolated | Keep |
+| 5 no formatters, regexes, images, subviews per row; capped caches | Yes (one `DateFormatter` in a static helper) | Yes (formatters built once) | Yes | 0 to 2 of 4 build regexes per call | Keep |
+| 5 no `adjustsFontSizeToFitWidth` | Yes (0) | Yes (0) | Yes (0) | 3 of 4 use it | Keep |
+| 5 no `draw(_:)` in cells | Yes (0) | Yes (0) | E17 1, E19 4 (before the rule) | 3 of 4 draw | Keep (E21 memory went from +50 % to -4 %) |
+| 5 plain colour, not bitmaps, for placeholders | not visible in code | not visible | not visible | not visible | Cut: no evidence either way |
+| 6 0.1 s timer flush | Yes | Yes | E16, E17 next-turn (rule then said so); E19 Yes | 0 of 4 (one has an `asyncAfter` for the scripted stream only) | Keep |
+| 6 `performBatchUpdates` in `performWithoutAnimation`, insert and reconfigure, no `reloadData` per message | Yes | Yes | Yes | 1 of 4 batches at all | Keep |
+| 6 "much cheaper than one per message" | n/a | n/a | n/a | n/a | Cut (reason, not instruction) |
+| 7 trim in the same batch, inserts at `oldCount - k` | Yes (`oldCount - trim`) | Yes | Yes | 0 of 4 | Keep |
+| 7 reconfigure in its own batch before a trim | Yes (`refreshRows`) | Yes (`changeRows`) | E19 Yes | 0 of 4 | Keep |
+| 7 "keep a few hundred rows" | Yes | Yes | Yes | 4 of 4 (the kit's window constant is in the prompt) | Cut |
+| 8 you set the offset, never UIKit | Yes (`setOffset` after every batch) | Yes | Yes | 4 of 4 set `contentOffset` by hand | Cut as its own rule |
+| 8 `targetContentOffset` only inside batch updates | Yes (layout, pending anchor) | Yes (layout, `restore`) | Yes | 0 of 4 use it | Keep, folded into the older-messages rule |
+| 9 older: insert without animation, new page only, layout keeps the row | Yes | Yes | Yes | 0 of 4 use the layout hook | Keep (load older 17 to 23 ms against 38 to 43 in the controls) |
+| 10 jump: window 10 above / 30 below, `reloadData`, offset at once, one `layoutIfNeeded` | Yes (10 / 30) | Yes (10 / 29) | Yes | 0 of 4 (window of about 80 rows) | Keep |
+| 11 no layout flush from scroll, provisioning or invalidation | Yes | Yes | Yes | 4 of 4 (no `layoutIfNeeded` in any of those callbacks in any of the 10 builds) | Cut |
+| 12 data started before `UIApplicationMain`, no placeholder | Yes | Yes (`main.swift`) | E17, E19 no | 0 of 4 | Keep |
+| 12 check a guessed width against the real one | Yes (width compared in the measure path) | Yes (`widthChanged`) | not isolated | not isolated | Keep (one clause) |
+| 13 strip settings | Yes | Yes | Yes | 0 of 4 | Keep |
+| Closing line: close the simulator you started | no extra simulator | none | none | n/a | Keep (machine hygiene) |
+
+### Reference files and the agent
+
+| File | Opened in the 6 thin-family transcripts (E16 to E21) | Did the code follow it? | Verdict |
+|---|---|---|---|
+| `references/more-surfaces.md` (347 words) | Every build, once, at turn 4 to 28 | The task has no keyboard, input bar, VoiceOver, right-to-left or image rows. Sol builds still added custom accessibility actions and a flip for right-to-left (E17, E19, E21) and, in E17, a keyboard guide: none of the Sol controls did, and none of it is scored. The text size and rotation bullets: Opus E20 hooks the size category and `viewWillTransition`; the Opus no-skill build hooks the size category too and does not handle rotation | Cut. Extras cost Sol agent time, which is the one bar Sol misses. One measured clause moves into rule 3: prefetching off (all six thin-family builds turn it off, no control does; the only place the skill said anything about it was this file) |
+| `references/measuring-text.md` (136 words) | 0 of 6 | n/a, a fallback for a TextKit 2 message view; no build needed it | Cut |
+| `references/table-view.md` (221 words) | 0 of 6 | n/a, no build used a table view | Cut |
+| `agents/uikit-list-reviewer.md` (216 words) | 0 of 6 (never installed in a build) | n/a | Cut: it quotes rule numbers that this change renumbers |
+
+### The cut group (branch `thin3`)
+
+SKILL.md 829 to 621 words; folder 1,533 to 621 words (the three references gone); with the agent, 1,749 to 621.
+
+Cuts, all in one commit: rule 11; rule 8's offset half (folded: its `targetContentOffset` sentence now ends the older-messages rule); rule 2's attribute list; rule 3's binary search, width-only invalidation and table-view pointer; rule 4's single-pass/`size()`/fonts sentence and two clauses; rule 5's placeholder clause; rule 6's reason; rule 7's "few hundred rows"; the pointer line to `more-surfaces.md`; the three references; the agent. Added: `isPrefetchingEnabled = false` in rule 3. Rules renumbered 1 to 11.
+
+If a build fails, the map back: a fault in the stream or the pin rows maps to rule 6 or 7 (nothing of theirs was cut except a reason and a sizing hint); load older or jump rows map to rule 8 (offset half cut); text size or rotation rows map to the removed `more-surfaces.md` bullets or the `size()` and fonts sentence in rule 4; memory rows map to the prefetch clause or rule 5; a menu or selection failure maps to the rule 2 attribute list.
