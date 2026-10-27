@@ -177,3 +177,41 @@ SKILL.md 829 to 621 words; folder 1,533 to 621 words (the three references gone)
 Cuts, all in one commit: rule 11; rule 8's offset half (folded: its `targetContentOffset` sentence now ends the older-messages rule); rule 2's attribute list; rule 3's binary search, width-only invalidation and table-view pointer; rule 4's single-pass/`size()`/fonts sentence and two clauses; rule 5's placeholder clause; rule 6's reason; rule 7's "few hundred rows"; the pointer line to `more-surfaces.md`; the three references; the agent. Added: `isPrefetchingEnabled = false` in rule 3. Rules renumbered 1 to 11.
 
 If a build fails, the map back: a fault in the stream or the pin rows maps to rule 6 or 7 (nothing of theirs was cut except a reason and a sizing hint); load older or jump rows map to rule 8 (offset half cut); text size or rotation rows map to the removed `more-surfaces.md` bullets or the `size()` and fonts sentence in rule 4; memory rows map to the prefetch clause or rule 5; a menu or selection failure maps to the rule 2 attribute list.
+
+## Agent time
+
+27 Oct 2026, read from the six build transcripts (E20, E22 Opus with thin2 and thin3; E21, E23 Sol with thin2 and thin3; E24 Opus and E25 Sol with no skill). Method: every tool call in order, each charged with the model time before it plus its own run time, by what the call was. "Own UI tests" is writing, building and running the agent's own XCUITest target plus reading its output; "reference study" is pixel measuring of the given screenshots. Seconds; columns add up to the wall time.
+
+| Phase (s) | E20 Opus thin2 | E22 Opus thin3 | E24 Opus none | E21 Sol thin2 | E23 Sol thin3 | E25 Sol none |
+|---|---|---|---|---|---|---|
+| Reading (prompt, skill, kit, logs) | 158 | 39 | 187 | 156 | 421 | 197 |
+| Reference study (screenshot pixels) | 55 | 590 | 409 | 5 | 299 | 78 |
+| Writing app code | 818 | 454 | 455 | 188 | 672 | 306 |
+| Builds | 155 | 91 | 105 | 116 | 77 | 51 |
+| Failed builds | 0 | 0 | 0 | 93 | 0 | 43 |
+| Simulator by hand (install, launch, screenshot) | 30 | 33 | 282 | 102 | 117 | 93 |
+| Looking at own screenshots | 10 | 76 | 11 | 0 | 0 | 0 |
+| Own UI tests (write, build, run, read) | 1,151 | 1,423 | 634 | 898 | 759 | 1,174 |
+| of which one hung test run | 600 | 601 | 0 | 0 | 0 | 1,285 (two) |
+| Waiting (sleep) | 0 | 17 | 0 | 0 | 0 | 0 |
+| Final report | 12 | 13 | 19 | 34 | 20 | 12 |
+| **Wall** | **2,389** | **2,737** | **2,102** | **1,593** | **2,366** | **1,954** |
+| Wall without the hung run | 1,789 | 2,136 | 2,102 | 1,593 | 2,366 | 669 |
+| `xcodebuild test` runs | 9 | 15 | 9 | 12 | 11 | 8 |
+
+What the table says:
+
+1. **The biggest single detour is one hung `xcodebuild test` call of about 600 s**, in both Opus skill builds (and twice in the Sol no-skill build). The agent ran its own UI test in the foreground with a 10-minute tool timeout; the test never ended, so the agent sat out the whole timeout. Without it, E22 is 2,136 s (inside the 2,454 s bar) and E20 1,789 s. No-skill Opus E24 had no hang, which is most of its 635 s lead over E22.
+2. **In E22 the hang comes from rule 1.** The rule says a menu without `suggestedActions` loses Copy; the agent checked Copy by long-pressing a text view in a UI test, tapping Copy and reading `UIPasteboard.general.string` from the test. Reading another app's pasteboard puts up the paste prompt, which nobody answers: the log stops right after the menu item list (`Reply, Copy, Look Up, Translate`). The menu checks in E22 took 626 s of its own-test time against 139 s in E24 (which has no menu test and fails text selection). In E20 the hung call was a full-suite run (no `-only-testing`) that did not exit after a failing test; its cause is not in the log, but the cure is the same: a per-test time limit.
+3. **Every build, skill or not, spends 634 to 1,423 s on its own UI tests**, 9 to 15 runs; the prompt never asks for tests. That is model behaviour, not a rule, and the skill cannot remove it without becoming a testing guide.
+4. **Sol thin3's extra 773 s over thin2 is visual matching**: a rendering test that compares its rows to the given screenshots, pixel study, and fetching the original icons from the web. None of it maps to a skill rule (the skill says nothing about looks); Sol no-skill did much less of it. Treat it as the spread between Sol builds until a second build says otherwise.
+5. No rule made an agent re-measure or redo the list code: builds 6 to 8 per run, failed builds only in E21 and E25, writing time within the usual spread.
+
+### The thin4 edit (branch `thin4`, tag `v0.11.4-thin4`)
+
+The smallest edit that removes the biggest detour, two sentences, no rule changed:
+
+- Rule 1 ends: "Copy is the system's item: if the menu lists it, it works; never read `UIPasteboard` from a UI test, it waits on the paste prompt."
+- Before the closing line: run `xcodebuild test` for the test you changed (`-only-testing:`) with `-test-timeouts-enabled YES -default-test-execution-time-allowance 60`, so a test stuck on a system prompt fails in a minute instead of holding the run.
+
+SKILL.md 621 to 677 words. Expected effect: Opus wall time down by the hung run (about 600 s) with no change to the app code; the screen rows should not move. E26 (Opus) tests it; E27 (Sol) follows.
