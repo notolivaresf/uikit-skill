@@ -215,3 +215,11 @@ The smallest edit that removes the biggest detour, two sentences, no rule change
 - Before the closing line: run `xcodebuild test` for the test you changed (`-only-testing:`) with `-test-timeouts-enabled YES -default-test-execution-time-allowance 60`, so a test stuck on a system prompt fails in a minute instead of holding the run.
 
 SKILL.md 621 to 677 words. Expected effect: Opus wall time down by the hung run (about 600 s) with no change to the app code; the screen rows should not move. E26 (Opus) tests it; E27 (Sol) follows.
+
+### The thin5 edit (branch `thin5`, tag `v0.11.5-thin5`)
+
+Why: Sol's top-row pick had no tolerance, so after the offset was restored the row above (a float remainder of pixel rounding) was named the top row, and text-size anchoring failed. Every build that passed had some margin or tolerance.
+
+Rule 8 gains two sentences: the top row counts only once its visible content is below the top edge (ignore transparent margin and sub-point rounding remainders, small tolerance), and the same rule is used to capture the anchor and to read the top row after restoring. No new rule. The timing/stopwatch candidate is not added.
+
+SKILL.md 677 to 719 words.
