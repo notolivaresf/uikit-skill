@@ -244,7 +244,7 @@ SKILL.md 730 to 826 words.
 
 Trim 1 of at most 2. thin7 passed on Sol (three builds) and Opus (one), so the question is which single rule costs least to lose.
 
-Cut: rule 11, the Release strip settings (`DEPLOYMENT_POSTPROCESSING`, `STRIP_INSTALLED_PRODUCT`, `STRIP_STYLE = all`, `DEAD_CODE_STRIPPING`). SKILL.md 826 to 794 words (the rule is 32 words).
+Cut: rule 11, the Release strip settings (`DEPLOYMENT_POSTPROCESSING`, `STRIP_INSTALLED_PRODUCT`, `STRIP_STYLE = all`, `DEAD_CODE_STRIPPING`). SKILL.md 826 to 813 words (the rule is 13 words by wc -w).
 
 Why this one:
 
