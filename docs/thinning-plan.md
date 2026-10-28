@@ -231,3 +231,11 @@ Why: the round 5 agent-time note found that Sol writes one test per rule and rer
 Two edits. A line before the numbered rules: "These rules say how to build it; they are not a list to test." The closing sentence now says to check each behaviour once the screen works and rerun only the failed tests by name (`-only-testing:`), keeping the time-limit flags and "Close any simulator you started". Rule 1's pasteboard sentence and rule 8's tolerance wording are kept. No rule added or removed.
 
 SKILL.md 721 to 730 words.
+
+### The thin7 edit (branch `thin7`, tag `v0.11.7-thin7`)
+
+Why: the round 5 thin6 time breakdown (docs/round5-thin6-time-breakdown.md in the benchmark repo) proposed four small edits.
+
+Four edits. Rule 6 keeps "pinned to the bottom" as state (set at the bottom, cleared only on a drag away, never worked out again from the offset) and says a pinned flush that also trims needs no second offset fix. Rule 7 trims rarely: the window runs a page past its limit before trimming back, so most arrivals are plain appends. Rule 8's target offset returns the bottom while pinned and otherwise keeps the first visible row. A line after "not a list to test" says to draw icons with system symbols and not download or import image assets or an app icon. The pasteboard sentence in rule 1 and rule 8's tolerance wording are kept. No rule added or removed; the optional faster-arrivals sentence is not added.
+
+SKILL.md 730 to 826 words.
