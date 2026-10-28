@@ -30,6 +30,5 @@ These rules say how to build it; they are not a list to test. Draw icons with sy
 ## Build and launch
 
 10. Start making the data on a background queue in the app's first line, before `UIApplicationMain`, and build the screen while it runs (no placeholder controller swapped in later); check a guessed width against the real one.
-11. The app target's Release build strips: `DEPLOYMENT_POSTPROCESSING`, `STRIP_INSTALLED_PRODUCT`, `STRIP_STYLE = all`, `DEAD_CODE_STRIPPING`.
 
 Check each behaviour once the screen works, then rerun only the failed tests by name (`-only-testing:`), not the whole test target. Pass `-test-timeouts-enabled YES -default-test-execution-time-allowance 60` to `xcodebuild test`. Close any simulator you started.

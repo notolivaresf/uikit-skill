@@ -239,3 +239,18 @@ Why: the round 5 thin6 time breakdown (docs/round5-thin6-time-breakdown.md in th
 Four edits. Rule 6 keeps "pinned to the bottom" as state (set at the bottom, cleared only on a drag away, never worked out again from the offset) and says a pinned flush that also trims needs no second offset fix. Rule 7 trims rarely: the window runs a page past its limit before trimming back, so most arrivals are plain appends. Rule 8's target offset returns the bottom while pinned and otherwise keeps the first visible row. A line after "not a list to test" says to draw icons with system symbols and not download or import image assets or an app icon. The pasteboard sentence in rule 1 and rule 8's tolerance wording are kept. No rule added or removed; the optional faster-arrivals sentence is not added.
 
 SKILL.md 730 to 826 words.
+
+### The thin8 edit (branch `thin8`, tag `v0.11.8-thin8`)
+
+Trim 1 of at most 2. thin7 passed on Sol (three builds) and Opus (one), so the question is which single rule costs least to lose.
+
+Cut: rule 11, the Release strip settings (`DEPLOYMENT_POSTPROCESSING`, `STRIP_INSTALLED_PRODUCT`, `STRIP_STYLE = all`, `DEAD_CODE_STRIPPING`). SKILL.md 826 to 794 words (the rule is 32 words).
+
+Why this one:
+
+- It changes only the size of the installed app. No check, no timing row and no scroll or stopwatch row reads the binary's symbols or its size. Its only measured effect is on app size (1.34 to 0.84 MB in the earliest spike), and app size is a scorecard row, not one of the 13 checks and not a wall or stopwatch bar.
+- The data says the builds that do not carry it still pass everything: the v0.3-pair controls had app sizes of 1.25, 1.22, 3.77 and 3.89 MB and reached 12 or 13 checks, with stopwatch rows that did not track size. thin7 builds sit at 0.70 to 0.74 MB, Opus thin7 at 0.80 MB.
+- It adds no agent time to keep or lose in an obvious way: it is a settings edit, and in the thin6 time breakdown Release builds were not a cost.
+- Other candidates were worse. Rule 5 (nothing per row) has the strongest measured effect (shrink-to-fit label 7.8 to 31 s of stream time). Rules 6 to 9 are the pin, trim, older and jump recipes that removed the rerun loop. Rule 10 (data off main) touches first-content time. The intro sentence and "not a list to test" save about 13 words each, but the latter is the only wording that tried to hold the test count down, and the thin6 breakdown found it did not fully work, so removing it risks more test waiting for fewer words than rule 11.
+
+Risk: a thin8 build may ship a larger app. That would show in the app-size row only. If a check or stopwatch row regresses, the cause is run-to-run spread, not this rule, and the second trim should then be a different rule.
