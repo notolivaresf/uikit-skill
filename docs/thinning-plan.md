@@ -239,3 +239,7 @@ Why: the round 5 thin6 time breakdown (docs/round5-thin6-time-breakdown.md in th
 Four edits. Rule 6 keeps "pinned to the bottom" as state (set at the bottom, cleared only on a drag away, never worked out again from the offset) and says a pinned flush that also trims needs no second offset fix. Rule 7 trims rarely: the window runs a page past its limit before trimming back, so most arrivals are plain appends. Rule 8's target offset returns the bottom while pinned and otherwise keeps the first visible row. A line after "not a list to test" says to draw icons with system symbols and not download or import image assets or an app icon. The pasteboard sentence in rule 1 and rule 8's tolerance wording are kept. No rule added or removed; the optional faster-arrivals sentence is not added.
 
 SKILL.md 730 to 826 words.
+
+## Frozen at thin7 (28 Oct)
+
+Fernando decided to freeze the chat-list skill at thin7 (commit f4c7acc, tag `v1.0.0`, 826 words). A thin8 trim (branch `thin8`, tag `v0.11.8-thin8`) was started and dropped: its build was stopped before it finished and was never scored. The branch and tag stay as they are and are not used.
