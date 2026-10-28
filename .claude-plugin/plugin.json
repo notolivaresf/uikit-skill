@@ -1,7 +1,7 @@
 {
   "name": "uikit-specialist",
   "version": "0.9.0",
-  "description": "Modern UIKit as a pair of skills in Swift (uikit-specialist, uikit-whats-new-27) and in Objective-C (uikit-specialist-objc, uikit-whats-new-27-objc), plus the uikit-chat-list skill and the uikit-list-reviewer agent.",
+  "description": "Modern UIKit as a pair of skills in Swift (uikit-specialist, uikit-whats-new-27) and in Objective-C (uikit-specialist-objc, uikit-whats-new-27-objc), plus the uikit-chat-list and uikit-list skills and the uikit-list-reviewer agent.",
   "author": {
     "name": "Fernando Olivares"
   },
