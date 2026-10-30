@@ -1,105 +1,82 @@
 # uikit-skill
 
-A pair of agent skills for writing, reviewing and speeding up modern UIKit code (iOS 18 and later), for Claude Code and Codex.
+Skills that teach AI coding agents (Claude Code and Codex) to write good UIKit code for iOS 18 and later. A skill is a small folder of instructions the agent reads before it starts work. Without one, agents tend to write UIKit screens that work but stutter, jump or lose the reader's place. With one, they get the hard parts right the first time.
 
-**Status: v0.4-objc-pair (19 Oct 2026).** Not yet tested against a benchmark. See `docs/experiment-plan.md`.
+The newest skills focus on one job: long lists that grow while you look at them, such as chats, feeds and logs. They are short on purpose. Agents read the main file once and rarely open anything else, so each rule is in that one file.
 
-## Variants
+## Which skill do I use?
 
-| Variant | Folder | Files | Size | Words |
-|---|---|---|---|---|
-| Specialist (v0.3) | `skills/uikit-specialist` | SKILL.md + 15 references | 130,946 bytes (128 KB) | 17,195 |
-| What's new in iOS 27 (v0.3) | `skills/uikit-whats-new-27` | SKILL.md + 10 references | 59,868 bytes (58 KB) | 7,485 |
-| Specialist, Objective-C (v0.4) | `skills/uikit-specialist-objc` | SKILL.md + 15 references | 170,049 bytes (166 KB) | 20,602 |
-| What's new in iOS 27, Objective-C (v0.4) | `skills/uikit-whats-new-27-objc` | SKILL.md + 10 references | 63,747 bytes (62 KB) | 8,105 |
-| Slim (v0.2-slim) | `skills/uikit-specialist-slim` | one SKILL.md | 12,410 bytes (12 KB) | 1,669 |
-| Full single skill (v0.1) | tag `v0.1` only (the folder now holds v0.3) | SKILL.md + 8 references | 66 KB | 8,918 |
-| Chat list (branch `thin3`, from thin2, 27 Oct) | `skills/uikit-chat-list` | SKILL.md only (the references and the reviewer agent were cut); sources in `docs/uikit-chat-list-sources.md`, cuts in `docs/thinning-plan.md` | see `wc -c` | 621 (SKILL.md) |
+| Skill | What it is for | Tag |
+|---|---|---|
+| `uikit-list` | Any long, fast-scrolling list in UIKit: feeds, inboxes, catalogs, logs, comment threads, chats. New items arrive, older pages load, the view does not move. Start here. | `v1.1.0-general1` |
+| `uikit-chat-list` | The same rules, worded for chat screens only. Frozen: this is the version we measured. | `v1.0.0` |
+| `uikit-specialist` | A big general guide to modern UIKit (15 reference files). Swift. | `v0.3-pair` |
+| `uikit-whats-new-27` | What changed in the iOS 27 SDK. Swift. Pairs with `uikit-specialist`. | `v0.3-pair` |
+| `uikit-specialist-objc`, `uikit-whats-new-27-objc` | The same pair with Objective-C examples. Install these instead of the Swift pair, not beside it. | `v0.4-objc-pair` |
+| `uikit-specialist-slim` | One short file with only the gotchas models miss. An experiment. | `v0.2-slim` |
 
-### Chat list skill and reviewer (Round 5 draft)
-
-`uikit-chat-list` is one focused skill for a long chat or feed list: streaming rows pinned to the bottom, older rows above without moving, jump to a message, text size and rotation, selectable text with the system edit menu. The whole recipe is in SKILL.md as 11 numbered rules, because agents read the main file once and rarely open references. The default list is a collection view with a custom layout. The installed folder names nothing about the benchmark (no build names, rounds or measured numbers), because validation builds copy it in; the evidence for every rule (the Round 5 dataset findings, Round 5 experiment results, WWDC sessions and SDK headers) is in `docs/uikit-chat-list-sources.md`, keyed rule by rule.
-
-The optional reviewer agent was cut in thin3: no build ever installed or called it.
-
-Draft status: v0.2 has the E1, E2 and E3 results (saved heights kept for correctness; the layout keeps the anchor on load older). One open check: the table view's streaming CPU disagreed between E1 and the E2/E3 runs and is being rerun, so the skill calls the streaming tie "tied in E1, being rechecked".
-
-Counts with `cat <files> | wc -c` and `wc -w` over every `.md` in the folder, 19 Oct 2026.
-
-The Objective-C pair (`uikit-specialist-objc` and `uikit-whats-new-27-objc`) has the same rules and the same topics as the Swift pair, with every example in modern Objective-C (nullability, lightweight generics, `weakSelf`/`strongSelf` blocks, `UICollectionViewCellRegistration`, `NSDiffableDataSourceSnapshot<Section, Item>`). Install it instead of the Swift pair in an Objective-C project, not beside it. It is about 22 percent larger than the Swift pair. Selectors were checked against the iOS 26.4 SDK headers; iOS 27 symbols were taken from the Objective-C declarations on Apple's documentation pages, and the skill says "Swift only" where Apple documents no Objective-C form (`navigationBarMinimization`, the `UIArrangementViewController` placement methods, reserved regions, `LayoutRegion.bar`, observation tracking in section providers).
-
-The pair is the default: install `uikit-specialist` and `uikit-whats-new-27` together. It matches the shape of Apple's Xcode 27 SwiftUI pair (a specialist skill for practice and performance, and a separate skill for what changed in the newest SDK), so a UIKit and SwiftUI comparison gives both sides the same kind of help. The slim and v0.1 variants stay for later experiments on skill size.
-
-## Why
-
-Apple's Xcode 27 ships agent skills, including a SwiftUI specialist and a SwiftUI "what's new" skill. There is no general UIKit equivalent: the only UIKit skill Apple ships is about modernizing an app for the scene life cycle and resizing. Agents writing UIKit get no guidance of the same kind, which matters when comparing UIKit and SwiftUI results built by agents.
-
-This pair aims to be the UIKit counterpart, written from scratch. It contains no Apple skill text. API facts come from Apple's public documentation, the iOS 27 release notes, WWDC26 session 278 and the SDK headers; each `uikit-whats-new-27` reference lists its sources in a closing comment.
-
-## What it covers
-
-### `uikit-specialist` (iOS 18 and later)
-
-SKILL.md holds how to work, the core rules, one "use when" line per reference and a review checklist. References: `collection-layout`, `diffable-data`, `cells`, `updates-and-scrolling`, `list-performance`, `layout`, `navigation-and-bars`, `dataflow`, `traits-and-environment`, `text`, `animation`, `interactions`, `accessibility`, `concurrency`, `deprecated-apis`.
-
-### `uikit-whats-new-27` (iOS 27.0 and 27.1 SDK)
-
-| Reference | Topic |
-|---|---|
-| `app-lifecycle.md` | scene life cycle required, launch screen required, state restoration into foreground, scene closure confirmation |
-| `resizable-apps.md` | resizable iPhone apps, `UIScreen.main`, `displayScale`, effective geometry, idiom and orientation, `UIRequiresFullScreen` discrete resizing, presented view controller traits |
-| `tabs-and-sidebar.md` | `prominentTabIdentifier`, iPhone sidebars, `sidebar.isAvailable` |
-| `navigation-bars.md` | `navigationBarMinimization`, scroll edge effects, edge element containers, centered search scope bars |
-| `menus-and-drag.md` | `preferredImageVisibility`, Ask Siri, drag sessions without a gesture, `allowsPointerDragBeforeLiftDelay` |
-| `scene-accessories.md` | `registerSceneAccessory(_:)`, external display content, camera capture accessory (27.1) |
-| `text.md` | viewport layout in `UITextView` subclasses, attachment view reuse, rendering surfaces, text tables |
-| `observation-and-sensors.md` | observation in section providers, `UIView` as motion and heading body, Catalyst refresh control and stepper |
-| `foldables-27-1.md` | `UIArrangementViewController`, reserved regions, `UIHingeInteraction`, vertical bars (27.1) |
-| `deprecations-and-fixes.md` | `canOpenURL` and other changes, behavior fixes, a grep list |
+Not sure? Take `uikit-list`. The two list skills are 875 and 826 words, so they cost very little to load.
 
 ## Install
 
-The skill is a folder in the open Agent Skills format (`SKILL.md` with `name` and `description`, plus `references/`). Copy or symlink `skills/uikit-specialist` and `skills/uikit-whats-new-27` (or, for Objective-C code, `skills/uikit-specialist-objc` and `skills/uikit-whats-new-27-objc`) into the place your agent reads skills from.
+Each skill is a folder with a `SKILL.md` file, in the open Agent Skills format. Clone the repo, then copy the folder you want to where your agent looks for skills.
+
+```sh
+git clone https://github.com/notolivaresf/uikit-skill.git
+```
+
+To get a frozen version, check out its tag, for example `git -C uikit-skill checkout v1.1.0-general1`.
 
 ### Claude Code
 
-Per project:
+For one project:
 
 ```sh
 mkdir -p .claude/skills
-cp -R /path/to/uikit-skill/skills/uikit-specialist /path/to/uikit-skill/skills/uikit-whats-new-27 .claude/skills/
+cp -R uikit-skill/skills/uikit-list .claude/skills/
 ```
 
-For every project, copy it to `~/.claude/skills/` instead.
+For every project, copy it into `~/.claude/skills/` instead.
 
-As a plugin (this repo is also a plugin marketplace):
+You can also install it as a plugin. This adds every skill in the repo:
 
 ```
 /plugin marketplace add notolivaresf/uikit-skill
 /plugin install uikit-specialist@uikit-skill
 ```
 
-The repo is private, so the marketplace add needs GitHub access to it.
-
 ### Codex
 
-Per project:
+For one project:
 
 ```sh
 mkdir -p .agents/skills
-cp -R /path/to/uikit-skill/skills/uikit-specialist /path/to/uikit-skill/skills/uikit-whats-new-27 .agents/skills/
+cp -R uikit-skill/skills/uikit-list .agents/skills/
 ```
 
 For every project, use `~/.agents/skills/`.
 
 ### Check that it loaded
 
-- Claude Code: `claude -p "List the names of the skills available to you"` in the project should include `uikit-specialist` and `uikit-whats-new-27`.
-- Codex: `codex exec --sandbox read-only "List the names of the skills available to you"` should include both.
+- Claude Code: `claude -p "List the names of the skills available to you"` should include `uikit-list`.
+- Codex: `codex exec --sandbox read-only "List the names of the skills available to you"` should include it too.
 
-## Versions
+## Does it help?
 
-Each change to the skill bumps `version` in `.claude-plugin/plugin.json` and gets a git tag (`v0.1`, `v0.2`, ...). Benchmark runs record the tag, the commit and a hash of the skill folder; see `docs/experiment-plan.md`.
+We built the same UIKit chat screen many times with agents, with and without the skill, and measured each build. The full write-up is in the [uikit-vs-swiftui](https://github.com/notolivaresf/uikit-vs-swiftui) repo (`docs/round5-summary.md`). The headline, for the chat-list skill at `v1.0.0`:
+
+- With Codex's model, the skill passed all 13 checks in every build. The build without it failed one (the long-press menu).
+- Those builds finished about 37 percent faster (1,597 seconds against 2,524) and used about 27 percent fewer output tokens (55,900 against 77,000).
+- On a stopwatch test of the finished app, jumping to a message took 18 ms instead of 35 ms, and loading older messages took 17 ms instead of 33 ms.
+- With Claude's Opus model the result was smaller: one build, 13 of 13 checks, and the fewest tokens of any Opus build we ran. One build is one sample, so treat that as a hint.
+
+`uikit-list` is the same skill with the chat wording made general. It has not been measured yet. The older, larger skills were never put through a benchmark.
+
+## More
+
+`docs/` has the reasoning: `general-list-skill.md` (how the chat skill became the general one), `thinning-plan.md` (how we cut the skill down), `uikit-chat-list-sources.md` (the evidence behind each rule) and `experiment-plan.md`.
+
+The skills contain no Apple skill text. API facts come from Apple's public documentation, WWDC sessions and the SDK headers.
 
 ## Licence
 
